@@ -1,0 +1,3 @@
+rootProject.name='EventBusCodeParsing'
+include ':app'
+include ':EventBus'
