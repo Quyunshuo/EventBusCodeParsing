@@ -17,14 +17,27 @@ package com.quyunshuo.eventbus;
 
 import java.lang.reflect.Method;
 
-/** Used internally by EventBus and generated subscriber indexes. */
+/**
+ * Used internally by EventBus and generated subscriber indexes.
+ */
+
+/**
+ * 订阅方法包装类
+ */
 public class SubscriberMethod {
+    // 订阅方法本身
     final Method method;
+    // 线程模型
     final ThreadMode threadMode;
+    // 订阅方法的参数类型的Class对象
     final Class<?> eventType;
+    // 优先级
     final int priority;
+    // 是否是粘性事件
     final boolean sticky;
-    /** Used for efficient comparison */
+    /**
+     * Used for efficient comparison
+     */
     String methodString;
 
     public SubscriberMethod(Method method, Class<?> eventType, ThreadMode threadMode, int priority, boolean sticky) {
@@ -41,7 +54,7 @@ public class SubscriberMethod {
             return true;
         } else if (other instanceof SubscriberMethod) {
             checkMethodString();
-            SubscriberMethod otherSubscriberMethod = (SubscriberMethod)other;
+            SubscriberMethod otherSubscriberMethod = (SubscriberMethod) other;
             otherSubscriberMethod.checkMethodString();
             // Don't use method.equals because of http://code.google.com/p/android/issues/detail?id=7811#c6
             return methodString.equals(otherSubscriberMethod.methodString);

@@ -14,12 +14,30 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         EventBus.getDefault().register(this);
-        EventBus.getDefault().post("111");
+        EventBus.getDefault().post(new TestEvent());
+        boolean a = false;
+        boolean b = false;
+        Log.d("miyan", "onCreate: " + (a | b));
     }
 
     @Subscribe
-    public void getEvent(String event) {
-        Log.d("miyan", "getEvent: ");
+    public void getEvent1(Object event) {
+        Log.d("miyan", "getEvent: Object");
+    }
+
+    @Subscribe
+    public void getEvent2(BaseEvent event) {
+        Log.d("miyan", "getEvent: BaseEvent");
+    }
+
+    @Subscribe
+    public void getEvent3(TestEvent event) {
+        Log.d("miyan", "getEvent: TestEvent");
+    }
+
+    @Subscribe
+    public void getEvent4(IEvent event) {
+        Log.d("miyan", "getEvent: IEvent");
     }
 
     @Override

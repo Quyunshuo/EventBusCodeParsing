@@ -15,13 +15,20 @@
  */
 package com.quyunshuo.eventbus;
 
+/**
+ * 订阅方法的包装类
+ */
 final class Subscription {
+
+    // 订阅者
     final Object subscriber;
+    // 订阅方法
     final SubscriberMethod subscriberMethod;
     /**
      * Becomes false as soon as {@link EventBus#unregister(Object)} is called, which is checked by queued event delivery
      * {@link EventBus#invokeSubscriber(PendingPost)} to prevent race conditions.
      */
+    // 订阅者状态
     volatile boolean active;
 
     Subscription(Object subscriber, SubscriberMethod subscriberMethod) {

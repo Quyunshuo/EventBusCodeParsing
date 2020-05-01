@@ -27,18 +27,21 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})
 public @interface Subscribe {
+    /**
+     * 线程模型
+     */
     ThreadMode threadMode() default ThreadMode.POSTING;
 
     /**
-     * If true, delivers the most recent sticky event (posted with
-     * {@link EventBus#postSticky(Object)}) to this subscriber (if event available).
+     * 粘性事件标记
      */
     boolean sticky() default false;
 
-    /** Subscriber priority to influence the order of event delivery.
-     * Within the same delivery thread ({@link ThreadMode}), higher priority subscribers will receive events before
-     * others with a lower priority. The default priority is 0. Note: the priority does *NOT* affect the order of
-     * delivery among subscribers with different {@link ThreadMode}s! */
+    /**
+     * 订阅方法优先级影响事件传递的顺序。
+     * 在同一个传递线程（{@link ThreadMode}）中，优先级较高的订户将在优先级较低的其他订户之前接收事件。
+     * 默认优先级为0。
+     * 注意：优先级*不会*影响具有不同{@link ThreadMode}的订户之间*发送的顺序！
+     */
     int priority() default 0;
 }
-
