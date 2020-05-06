@@ -80,6 +80,7 @@ class SubscriberMethodFinder {
             // 没使用索引  使用反射进行查找订阅者的订阅方法
             subscriberMethods = findUsingReflection(subscriberClass);
         } else {
+            // 如果开启了索引 会走findUsingInfo()去查找订阅者的订阅方法
             subscriberMethods = findUsingInfo(subscriberClass);
         }
         // 判断订阅方法是否为null
@@ -93,6 +94,12 @@ class SubscriberMethodFinder {
         }
     }
 
+    /**
+     * 通过索引来查找订阅方法
+     *
+     * @param subscriberClass 订阅者
+     * @return 订阅方法
+     */
     private List<SubscriberMethod> findUsingInfo(Class<?> subscriberClass) {
         // 拿到FindState实例
         FindState findState = prepareFindState();
