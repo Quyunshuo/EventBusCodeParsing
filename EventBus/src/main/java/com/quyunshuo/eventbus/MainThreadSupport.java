@@ -18,7 +18,7 @@ package com.quyunshuo.eventbus;
 import android.os.Looper;
 
 /**
- * Interface to the "main" thread, which can be whatever you like. Typically on Android, Android's main thread is used.
+ * 主线程的接口
  */
 public interface MainThreadSupport {
 

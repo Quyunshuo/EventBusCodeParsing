@@ -16,11 +16,20 @@
 
 package com.quyunshuo.eventbus;
 
+/**
+ * 等待发布的队列
+ */
 final class PendingPostQueue {
     private PendingPost head;
     private PendingPost tail;
 
+    /**
+     * 入队
+     *
+     * @param pendingPost 等待发布的事件
+     */
     synchronized void enqueue(PendingPost pendingPost) {
+        // 如果pendingPost为null 抛出异常
         if (pendingPost == null) {
             throw new NullPointerException("null cannot be enqueued");
         }

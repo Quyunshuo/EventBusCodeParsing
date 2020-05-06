@@ -18,11 +18,19 @@ package com.quyunshuo.eventbus;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 等待发送的事件
+ */
 final class PendingPost {
     private final static List<PendingPost> pendingPostPool = new ArrayList<PendingPost>();
 
+    // 事件
     Object event;
+
+    // 订阅方法的包装类
     Subscription subscription;
+
+    //
     PendingPost next;
 
     private PendingPost(Object event, Subscription subscription) {
@@ -30,6 +38,11 @@ final class PendingPost {
         this.subscription = subscription;
     }
 
+    /**
+     * @param subscription 订阅者&订阅方法的包装类
+     * @param event        事件
+     * @return
+     */
     static PendingPost obtainPendingPost(Subscription subscription, Object event) {
         synchronized (pendingPostPool) {
             int size = pendingPostPool.size();
@@ -44,12 +57,18 @@ final class PendingPost {
         return new PendingPost(event, subscription);
     }
 
+    /**
+     * 释放待定的post
+     *
+     * @param pendingPost
+     */
     static void releasePendingPost(PendingPost pendingPost) {
         pendingPost.event = null;
         pendingPost.subscription = null;
         pendingPost.next = null;
         synchronized (pendingPostPool) {
             // Don't let the pool grow indefinitely
+            // 不要让池无限期地增长
             if (pendingPostPool.size() < 10000) {
                 pendingPostPool.add(pendingPost);
             }

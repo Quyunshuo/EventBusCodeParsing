@@ -16,9 +16,7 @@
 package com.quyunshuo.eventbus;
 
 /**
- * Posts events.
- *
- * @author William Ferguson
+ * 发布事件的接口
  */
 interface Poster {
 

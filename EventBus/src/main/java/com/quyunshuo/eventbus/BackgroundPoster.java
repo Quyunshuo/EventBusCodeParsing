@@ -18,9 +18,8 @@ package com.quyunshuo.eventbus;
 import java.util.logging.Level;
 
 /**
- * Posts events in background.
- *
- * @author Markus
+ * 在子线程中发布事件
+ * BackgroundPoster是一个实现了Runnable和Poster接口的类
  */
 final class BackgroundPoster implements Runnable, Poster {
 
@@ -37,9 +36,11 @@ final class BackgroundPoster implements Runnable, Poster {
     public void enqueue(Subscription subscription, Object event) {
         PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
         synchronized (this) {
+            // 入队
             queue.enqueue(pendingPost);
             if (!executorRunning) {
                 executorRunning = true;
+                // 交给EventBus的线程池，执行自己
                 eventBus.getExecutorService().execute(this);
             }
         }
@@ -70,5 +71,4 @@ final class BackgroundPoster implements Runnable, Poster {
             executorRunning = false;
         }
     }
-
 }

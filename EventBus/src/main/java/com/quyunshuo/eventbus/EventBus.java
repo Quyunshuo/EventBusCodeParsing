@@ -68,8 +68,11 @@ public class EventBus {
     // @Nullable
     private final MainThreadSupport mainThreadSupport;
     // @Nullable
+    // Main 主线程
     private final Poster mainThreadPoster;
+    // 在子线程中
     private final BackgroundPoster backgroundPoster;
+    // 总是开启一个子线程的
     private final AsyncPoster asyncPoster;
     // 订阅方法查找器
     private final SubscriberMethodFinder subscriberMethodFinder;
@@ -544,10 +547,10 @@ public class EventBus {
     }
 
     /**
-     * 将事件发布给订阅方法
+     * 将事件发布给订阅方法 & 线程切换
      *
      * @param subscription 订阅者+订阅方法 的包装类
-     * @param event        粘性事件
+     * @param event        事件
      * @param isMainThread 是否是主线程
      */
     private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
@@ -564,6 +567,8 @@ public class EventBus {
                 }
                 break;
             case MAIN_ORDERED:
+                // 如果在Android平台上，那么事件将异步地在Android 主线程中执行；
+                // 如果在非Android平台上，那么事件将同步地在发布线程中执行。
                 if (mainThreadPoster != null) {
                     mainThreadPoster.enqueue(subscription, event);
                 } else {
@@ -640,10 +645,18 @@ public class EventBus {
      * subscriber unregistered. This is particularly important for main thread delivery and registrations bound to the
      * live cycle of an Activity or Fragment.
      */
+    /**
+     * 发送事件
+     *
+     * @param pendingPost
+     */
     void invokeSubscriber(PendingPost pendingPost) {
+        // 获取事件
         Object event = pendingPost.event;
+        // 获取订阅方法的包装类
         Subscription subscription = pendingPost.subscription;
         PendingPost.releasePendingPost(pendingPost);
+        // 如果订阅者的状态为活跃状态 就发送事件
         if (subscription.active) {
             invokeSubscriber(subscription, event);
         }
@@ -652,11 +665,12 @@ public class EventBus {
     /**
      * 发送事件
      *
-     * @param subscription
-     * @param event
+     * @param subscription 订阅方法的包装类
+     * @param event        事件
      */
     void invokeSubscriber(Subscription subscription, Object event) {
         try {
+            // 通过反射调用订阅方法
             subscription.subscriberMethod.method.invoke(subscription.subscriber, event);
         } catch (InvocationTargetException e) {
             handleSubscriberException(subscription, event, e.getCause());
