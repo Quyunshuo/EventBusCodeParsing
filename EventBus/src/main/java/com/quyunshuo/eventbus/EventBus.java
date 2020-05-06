@@ -76,6 +76,7 @@ public class EventBus {
     private final AsyncPoster asyncPoster;
     // 订阅方法查找器
     private final SubscriberMethodFinder subscriberMethodFinder;
+    // 线程池
     private final ExecutorService executorService;
     // 抛出订阅异常
     private final boolean throwSubscriberException;
@@ -115,10 +116,12 @@ public class EventBus {
     }
 
     /**
-     * For unit test primarily.
+     * 主要用于单元测试
      */
     public static void clearCaches() {
+        // 清除订阅者容器缓存
         SubscriberMethodFinder.clearCaches();
+        // 清除事件类型缓存
         eventTypesCache.clear();
     }
 
@@ -281,12 +284,19 @@ public class EventBus {
         return mainThreadSupport == null || mainThreadSupport.isMainThread();
     }
 
+    /**
+     * 是否已经注册
+     *
+     * @param subscriber 订阅者
+     * @return
+     */
     public synchronized boolean isRegistered(Object subscriber) {
         return typesBySubscriber.containsKey(subscriber);
     }
 
     /**
      * Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber.
+     * 按事件类型退订
      */
     private void unsubscribeByEventType(Object subscriber, Class<?> eventType) {
         List<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
@@ -305,7 +315,7 @@ public class EventBus {
     }
 
     /**
-     * Unregisters the given subscriber from all event classes.
+     * 注销订阅
      */
     public synchronized void unregister(Object subscriber) {
         List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
@@ -323,7 +333,7 @@ public class EventBus {
      * Posts the given event to the event bus.
      */
     /**
-     * 发送普通事件
+     * 发送普通事件 & 粘性事件
      *
      * @param event
      */
@@ -367,6 +377,11 @@ public class EventBus {
      * {@link Subscribe#priority()}). Canceling is restricted to event handling methods running in posting thread
      * {@link ThreadMode#POSTING}.
      */
+    /**
+     * 取消事件传递
+     *
+     * @param event 事件
+     */
     public void cancelEventDelivery(Object event) {
         PostingThreadState postingState = currentPostingThreadState.get();
         if (!postingState.isPosting) {
@@ -380,12 +395,12 @@ public class EventBus {
             throw new EventBusException(" event handlers may only abort the incoming event");
         }
 
+        // 将事件设置为取消状态
         postingState.canceled = true;
     }
 
     /**
-     * Posts the given event to the event bus and holds on to the event (because it is sticky). The most recent sticky
-     * event of an event's type is kept in memory for future access by subscribers using {@link Subscribe#sticky()}.
+     * 将给定事件发布到事件总线上并保留该事件（因为它是粘性的）。事件类型的最新粘性*事件保留在内存中，以供订户以后使用{@link Subscribe＃sticky（）}访问。
      */
     public void postSticky(Object event) {
         synchronized (stickyEvents) {
@@ -396,9 +411,9 @@ public class EventBus {
     }
 
     /**
-     * Gets the most recent sticky event for the given type.
+     * 获取给定类型的最新粘性事件。
      *
-     * @see #postSticky(Object)
+     * @see #postSticky(Object) 粘性事件的事件Class对象
      */
     public <T> T getStickyEvent(Class<T> eventType) {
         synchronized (stickyEvents) {
@@ -407,9 +422,9 @@ public class EventBus {
     }
 
     /**
-     * Remove and gets the recent sticky event for the given event type.
+     * 删除并获取给定事件类型的最近粘性事件。
      *
-     * @see #postSticky(Object)
+     * @see #postSticky(Object) 粘性事件的事件Class对象
      */
     public <T> T removeStickyEvent(Class<T> eventType) {
         synchronized (stickyEvents) {
@@ -418,9 +433,9 @@ public class EventBus {
     }
 
     /**
-     * Removes the sticky event if it equals to the given event.
+     * 如果该事件等于给定事件，则将其删除。
      *
-     * @return true if the events matched and the sticky event was removed.
+     * @return 如果事件匹配并且已删除粘性事件，则为true。
      */
     public boolean removeStickyEvent(Object event) {
         synchronized (stickyEvents) {
@@ -436,7 +451,7 @@ public class EventBus {
     }
 
     /**
-     * Removes all sticky events.
+     * 删除所有粘性事件
      */
     public void removeAllStickyEvents() {
         synchronized (stickyEvents) {
@@ -444,6 +459,12 @@ public class EventBus {
         }
     }
 
+    /**
+     * 判断该事件是否已经注册过，即是否有响应的方法
+     *
+     * @param eventClass 事件Class对象
+     * @return
+     */
     public boolean hasSubscriberForEvent(Class<?> eventClass) {
         List<Class<?>> eventTypes = lookupAllEventTypes(eventClass);
         if (eventTypes != null) {
@@ -734,12 +755,17 @@ public class EventBus {
         boolean canceled;
     }
 
+    /**
+     * 获取自己的线程池
+     *
+     * @return
+     */
     ExecutorService getExecutorService() {
         return executorService;
     }
 
     /**
-     * For internal use only.
+     * 内部使用的log封装类
      */
     public Logger getLogger() {
         return logger;

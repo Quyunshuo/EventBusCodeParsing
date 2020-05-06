@@ -274,6 +274,9 @@ class SubscriberMethodFinder {
         }
     }
 
+    /**
+     * 清除订阅者容器缓存
+     */
     static void clearCaches() {
         METHOD_CACHE.clear();
     }
