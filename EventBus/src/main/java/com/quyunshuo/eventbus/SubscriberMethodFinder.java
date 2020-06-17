@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 订阅方法查找器
+ * 内部维护一个承载订阅者及订阅者的订阅方法的map容器
  */
 class SubscriberMethodFinder {
     /*
@@ -36,15 +37,19 @@ class SubscriberMethodFinder {
      * http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.6-200-A.1
      */
     private static final int BRIDGE = 0x40; // 64
+
     private static final int SYNTHETIC = 0x1000; //4096
 
     private static final int MODIFIERS_IGNORE = Modifier.ABSTRACT | Modifier.STATIC | BRIDGE | SYNTHETIC;
-    // 订阅者容器
+
+    // 订阅者容器  <订阅者,订阅者的订阅方法>
     private static final Map<Class<?>, List<SubscriberMethod>> METHOD_CACHE = new ConcurrentHashMap<>();
 
     private List<SubscriberInfoIndex> subscriberInfoIndexes;
+
     // 是否是严格的方法验证
     private final boolean strictMethodVerification;
+
     // 是否没使用索引
     private final boolean ignoreGeneratedIndex;
 
@@ -75,7 +80,7 @@ class SubscriberMethodFinder {
             return subscriberMethods;
         }
         // 为空继续往下走
-        // 是否没使用索引
+        // 是否没使用索引 该处是一个重要拐点 当使用者开启了apt后，将先通过索引进行查找，否则使用最原始的反射进行查找
         if (ignoreGeneratedIndex) {
             // 没使用索引  使用反射进行查找订阅者的订阅方法
             subscriberMethods = findUsingReflection(subscriberClass);
@@ -293,6 +298,7 @@ class SubscriberMethodFinder {
      * FindState类是SubscriberMethodFinder的内部类，这个方法主要做一个初始化的工作。
      */
     static class FindState {
+
         // 订阅方法
         final List<SubscriberMethod> subscriberMethods = new ArrayList<>();
 
@@ -306,10 +312,13 @@ class SubscriberMethodFinder {
 
         // 订阅者
         Class<?> subscriberClass;
+
         // 订阅者
         Class<?> clazz;
+
         // 当无法通过反射进行查找 报java.lang.NoClassDefFoundError错时 跳过父类查找
         boolean skipSuperClasses;
+
         // 订阅者的信息
         SubscriberInfo subscriberInfo;
 
