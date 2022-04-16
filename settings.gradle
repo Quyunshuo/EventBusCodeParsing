@@ -1,2 +1,11 @@
-rootProject.name='EventBusCodeParsing'
+rootProject.name = 'EventBusCodeParsing'
+// old
 include ':EventBus-3`2`0'
+
+// new
+include ':EventBus'
+include ':eventbus-android'
+include ':EventBusAnnotationProcessor'
+
+project(":EventBus").name = "eventbus-java"
+project(":EventBusAnnotationProcessor").name = "eventbus-annotation-processor"
