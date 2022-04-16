@@ -1,3 +1,2 @@
 rootProject.name='EventBusCodeParsing'
-include ':app'
-include ':EventBus'
+include ':EventBus-3`2`0'
