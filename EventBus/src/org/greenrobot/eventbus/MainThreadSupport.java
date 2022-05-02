@@ -16,11 +16,16 @@
 package org.greenrobot.eventbus;
 
 /**
- * Interface to the "main" thread, which can be whatever you like. Typically on Android, Android's main thread is used.
+ * “主”线程的接口，可以是任何你喜欢的。通常在 Android 上，使用 Android 的主线程。
  */
 public interface MainThreadSupport {
-
+    /**
+     * 当前是否是主线程
+     */
     boolean isMainThread();
 
+    /**
+     * 创建事件发布器
+     */
     Poster createPoster(EventBus eventBus);
 }

@@ -16,6 +16,7 @@
 package org.greenrobot.eventbus;
 
 import org.greenrobot.eventbus.android.AndroidDependenciesDetector;
+
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,28 +29,35 @@ import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 
 /**
- * EventBus is a central publish/subscribe event system for Java and Android.
- * Events are posted ({@link #post(Object)}) to the bus, which delivers it to subscribers that have a matching handler
- * method for the event type.
- * To receive events, subscribers must register themselves to the bus using {@link #register(Object)}.
- * Once registered, subscribers receive events until {@link #unregister(Object)} is called.
- * Event handling methods must be annotated by {@link Subscribe}, must be public, return nothing (void),
- * and have exactly one parameter (the event).
- *
- * @author Markus Junginger, greenrobot
+ * EventBus 是一个用于 Java 和 Android 的中央发布订阅事件系统。
+ * 事件被发布（{@link #post(Object)}）到总线，总线将其传递给具有事件类型匹配处理程序方法的订阅者。
+ * 要接收事件，订阅者必须使用 {@link #register(Object)} 将自己注册到总线。
+ * 注册后，订阅者会收到事件，直到调用 {@link #unregister(Object)}。
+ * 事件处理方法必须由 {@link Subscribe} 注释，必须是公共的，不返回任何内容（void），并且只有一个参数（事件）。
  */
 public class EventBus {
 
-    /** Log tag, apps may override it. */
     public static String TAG = "EventBus";
 
+    /**
+     * 默认的 EventBus 实例，使用 volatile 修饰，保证其在并发环境下的可见行
+     */
     static volatile EventBus defaultInstance;
-
+    /**
+     * EventBus 构建者实例
+     */
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<>();
-
+    /**
+     * 按照事件类型分类的订阅方法 HashMap
+     * key:Class<?> 事件类的 Class 对象， value:CopyOnWriteArrayList<Subscription> 订阅者方法集合
+     */
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
     private final Map<Object, List<Class<?>>> typesBySubscriber;
+    /**
+     * 粘性事件 ConcurrentHashMap
+     * key:Class<?> 事件类的 Class 对象，value: 当前最新的粘性事件
+     */
     private final Map<Class<?>, Object> stickyEvents;
 
     private final ThreadLocal<PostingThreadState> currentPostingThreadState = new ThreadLocal<PostingThreadState>() {
@@ -60,25 +68,41 @@ public class EventBus {
     };
 
     // @Nullable
+    // 主线程支持
     private final MainThreadSupport mainThreadSupport;
     // @Nullable
+    // 主线程事件发布器
     private final Poster mainThreadPoster;
+    // 后台线程事件发布器
     private final BackgroundPoster backgroundPoster;
+    // 异步事件发布器
     private final AsyncPoster asyncPoster;
+    // 订阅者方法查找器
     private final SubscriberMethodFinder subscriberMethodFinder;
+    // 用于异步和后台处理的线程池 默认为 Executors.newCachedThreadPool()
     private final ExecutorService executorService;
 
+    // 如果订阅者方法执行有异常时，抛出 SubscriberException
     private final boolean throwSubscriberException;
+    // 订阅函数执行有异常时，打印异常信息
     private final boolean logSubscriberExceptions;
+    // 事件无匹配订阅函数时，打印信息
     private final boolean logNoSubscriberMessages;
+    // 订阅函数执行有异常时，发布 SubscriberExceptionEvent 事件
     private final boolean sendSubscriberExceptionEvent;
+    // 事件无匹配订阅函数时，发布NoSubscriberEvent
     private final boolean sendNoSubscriberEvent;
+    // 事件继承
     private final boolean eventInheritance;
-
+    // 索引类数量
     private final int indexCount;
+    // 日志处理程序
     private final Logger logger;
 
-    /** Convenience singleton for apps using a process-wide EventBus instance. */
+    /**
+     * 使用进程范围的 EventBus 实例为应用程序提供便利的单例。
+     * 双重校验锁式单例
+     */
     public static EventBus getDefault() {
         EventBus instance = defaultInstance;
         if (instance == null) {
@@ -103,8 +127,8 @@ public class EventBus {
     }
 
     /**
-     * Creates a new EventBus instance; each instance is a separate scope in which events are delivered. To use a
-     * central bus, consider {@link #getDefault()}.
+     * 创建一个新的 EventBus 实例；每个实例都是一个单独的范围，在其中传递事件。
+     * 要使用中央总线，请考虑 {@link #getDefault()}。
      */
     public EventBus() {
         this(DEFAULT_BUILDER);

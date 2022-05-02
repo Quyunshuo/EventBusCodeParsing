@@ -16,17 +16,17 @@
 package org.greenrobot.eventbus;
 
 /**
- * Posts events.
+ * 发布事件程序抽象 可以理解为事件发布器抽象
  *
  * @author William Ferguson
  */
 public interface Poster {
 
     /**
-     * Enqueue an event to be posted for a particular subscription.
+     * 将要为特定订阅发布的事件排入队列
      *
-     * @param subscription Subscription which will receive the event.
-     * @param event        Event that will be posted to subscribers.
+     * @param subscription 接收事件的订阅方法
+     * @param event        将发布给订阅者的事件
      */
     void enqueue(Subscription subscription, Object event);
 }

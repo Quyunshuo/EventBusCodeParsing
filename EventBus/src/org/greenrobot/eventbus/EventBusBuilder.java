@@ -23,25 +23,41 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Creates EventBus instances with custom parameters and also allows to install a custom default EventBus instance.
- * Create a new builder using {@link EventBus#builder()}.
+ * 使用自定义参数创建 EventBus 实例，还允许安装自定义的默认 EventBus 实例。
+ * 使用 {@link EventBus#builder()} 创建一个新的构建器。
  */
 @SuppressWarnings("unused")
 public class EventBusBuilder {
+    // 私有线程池
     private final static ExecutorService DEFAULT_EXECUTOR_SERVICE = Executors.newCachedThreadPool();
 
+    // 订阅函数执行有异常时，打印异常信息
     boolean logSubscriberExceptions = true;
+    // 事件无匹配订阅函数时，打印信息
     boolean logNoSubscriberMessages = true;
+    // 订阅函数执行有异常时，发布 SubscriberExceptionEvent 事件
     boolean sendSubscriberExceptionEvent = true;
+    // 事件无匹配订阅函数时，发布NoSubscriberEvent
     boolean sendNoSubscriberEvent = true;
+    // 如果订阅者方法执行有异常时，抛出 SubscriberException
     boolean throwSubscriberException;
+    // 事件继承
     boolean eventInheritance = true;
+    // 是否忽略生成的索引 默认值为 false
     boolean ignoreGeneratedIndex;
+    // 是否进行严格的方法验证 默认值为 false
     boolean strictMethodVerification;
+    // 公开线程池
     ExecutorService executorService = DEFAULT_EXECUTOR_SERVICE;
+    // 跳过类的方法验证
     List<Class<?>> skipMethodVerificationForClasses;
+
+    // 订阅者索引集合 SubscriberInfoIndex 是注解处理器生成的索引类的抽象接口
+    // 该属性只有在调用 addIndex(SubscriberInfoIndex index) 添加索引类的时候才会被初始化赋值
     List<SubscriberInfoIndex> subscriberInfoIndexes;
+    // 日志处理程序
     Logger logger;
+    // 主线程支持
     MainThreadSupport mainThreadSupport;
 
     EventBusBuilder() {
@@ -98,8 +114,8 @@ public class EventBusBuilder {
 
 
     /**
-     * Provide a custom thread pool to EventBus used for async and background event delivery. This is an advanced
-     * setting to that can break things: ensure the given ExecutorService won't get stuck to avoid undefined behavior.
+     * 为 EventBus 提供一个自定义线程池，用于异步和后台事件传递。
+     * 这是一个可以破坏事情的高级设置：确保给定的 ExecutorService 不会卡住以避免未定义的行为。
      */
     public EventBusBuilder executorService(ExecutorService executorService) {
         this.executorService = executorService;
@@ -125,7 +141,7 @@ public class EventBusBuilder {
         return this;
     }
 
-    /** Enables strict method verification (default: false). */
+    /** 启用严格的方法验证（默认值：false） */
     public EventBusBuilder strictMethodVerification(boolean strictMethodVerification) {
         this.strictMethodVerification = strictMethodVerification;
         return this;
@@ -141,15 +157,17 @@ public class EventBusBuilder {
     }
 
     /**
-     * Set a specific log handler for all EventBus logging.
-     * <p/>
-     * By default, all logging is via {@code android.util.Log} on Android or System.out on JVM.
+     * 为所有 EventBus 日志设置特定的日志处理程序
+     * 默认情况下，所有日志记录都是通过 Android 上的 {@code android.util.Log} 或 JVM 上的 System.out。
      */
     public EventBusBuilder logger(Logger logger) {
         this.logger = logger;
         return this;
     }
 
+    /**
+     * 获取 Logger
+     */
     Logger getLogger() {
         if (logger != null) {
             return logger;
@@ -158,10 +176,14 @@ public class EventBusBuilder {
         }
     }
 
+    /**
+     * 获取主线程支持
+     */
     MainThreadSupport getMainThreadSupport() {
         if (mainThreadSupport != null) {
             return mainThreadSupport;
         } else if (AndroidComponents.areAvailable()) {
+            // 如果有 Android 组件就返回默认的 Android 主线程支持
             return AndroidComponents.get().defaultMainThreadSupport;
         } else {
             return null;
