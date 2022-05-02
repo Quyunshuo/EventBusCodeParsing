@@ -15,12 +15,22 @@
  */
 package org.greenrobot.eventbus;
 
+/**
+ * 订阅者方法包装类  可以视为一个订阅者方法
+ */
 final class Subscription {
+    /**
+     * 订阅者
+     */
     final Object subscriber;
+    /**
+     * 订阅方法
+     */
     final SubscriberMethod subscriberMethod;
     /**
-     * Becomes false as soon as {@link EventBus#unregister(Object)} is called, which is checked by queued event delivery
-     * {@link EventBus#invokeSubscriber(PendingPost)} to prevent race conditions.
+     * 是否活跃
+     * 调用 {@link EventBus#unregister(Object)} 后立即变为 false，
+     * 队列事件传递 {@link EventBus#invokeSubscriber(PendingPost)} 检查以防止出现竞争条件。
      */
     volatile boolean active;
 

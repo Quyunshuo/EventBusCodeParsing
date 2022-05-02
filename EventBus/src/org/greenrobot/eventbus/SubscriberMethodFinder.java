@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 订阅者方法查找器
+ */
 class SubscriberMethodFinder {
     /*
      * In newer class files, compilers may add methods. Those are called bridge or synthetic methods.
@@ -37,9 +40,11 @@ class SubscriberMethodFinder {
 
     private static final int MODIFIERS_IGNORE = Modifier.ABSTRACT | Modifier.STATIC | BRIDGE | SYNTHETIC;
     private static final Map<Class<?>, List<SubscriberMethod>> METHOD_CACHE = new ConcurrentHashMap<>();
-
+    // 订阅者索引类集合
     private List<SubscriberInfoIndex> subscriberInfoIndexes;
+    // 是否进行严格的方法验证 默认值为 false
     private final boolean strictMethodVerification;
+    // 是否忽略生成的索引 默认值为 false
     private final boolean ignoreGeneratedIndex;
 
     private static final int POOL_SIZE = 4;
