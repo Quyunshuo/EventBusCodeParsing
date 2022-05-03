@@ -16,7 +16,7 @@
 package org.greenrobot.eventbus;
 
 /**
- * 订阅者方法包装类  可以视为一个订阅者方法
+ * 订阅者方法包装类  可以视为一个订阅方法的信息
  */
 final class Subscription {
     /**

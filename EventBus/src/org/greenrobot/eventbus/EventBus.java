@@ -50,7 +50,7 @@ public class EventBus {
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<>();
     /**
      * 按照事件类型分类的订阅方法 HashMap
-     * key:Class<?> 事件类的 Class 对象， value:CopyOnWriteArrayList<Subscription> 订阅者方法集合
+     * key:Class<?> 事件类的 Class 对象， value:CopyOnWriteArrayList<Subscription> 订阅者方法信息集合
      */
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
     private final Map<Object, List<Class<?>>> typesBySubscriber;
@@ -156,30 +156,41 @@ public class EventBus {
     }
 
     /**
-     * Registers the given subscriber to receive events. Subscribers must call {@link #unregister(Object)} once they
-     * are no longer interested in receiving events.
-     * <p/>
-     * Subscribers have event handling methods that must be annotated by {@link Subscribe}.
-     * The {@link Subscribe} annotation also allows configuration like {@link
-     * ThreadMode} and priority.
+     * 注册给定的订阅者以接收事件。一旦订阅者不再对接收事件感兴趣，就必须调用 {@link #unregister(Object)}。
+     * 订阅者具有必须由 {@link Subscribe} 注释的事件处理方法。
+     * {@link Subscribe} 注解还允许像 {@link ThreadMode} 和优先级这样的配置。
+     * 订阅者可以是任何对象
      */
     public void register(Object subscriber) {
+        // 判断是否是 Android 平台，是否引用了 EventBus 的 Android 兼容库
         if (AndroidDependenciesDetector.isAndroidSDKAvailable() && !AndroidDependenciesDetector.areAndroidComponentsAvailable()) {
-            // Crash if the user (developer) has not imported the Android compatibility library.
+            // 满足条件进入此分支后，表示是 Android 平台，但是没有依赖 EventBus 的 Android 兼容库
+            // 如果用户（开发人员）没有导入 Android 兼容库，则会崩溃。
             throw new RuntimeException("It looks like you are using EventBus on Android, " +
                     "make sure to add the \"eventbus\" Android library to your dependencies.");
         }
 
+        // 反射获取订阅者的 Class 对象
         Class<?> subscriberClass = subscriber.getClass();
+        // 通过 subscriberMethodFinder 订阅方法查找器去查找订阅者的订阅方法，得到一个订阅方法List List<SubscriberMethod>
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriberClass);
+        // 加同步锁，监视器为当前 EventBus 对象
         synchronized (this) {
+            // 对订阅方法 List 进行遍历
             for (SubscriberMethod subscriberMethod : subscriberMethods) {
+                // 遍历到的每一个方法对其产生订阅关系
                 subscribe(subscriber, subscriberMethod);
             }
         }
     }
 
-    // Must be called in synchronized block
+    /**
+     * 产生订阅关系
+     * 必须在同步块中调用
+     *
+     * @param subscriber       Object 订阅者对象
+     * @param subscriberMethod SubscriberMethod 订阅者方法
+     */
     private void subscribe(Object subscriber, SubscriberMethod subscriberMethod) {
         Class<?> eventType = subscriberMethod.eventType;
         Subscription newSubscription = new Subscription(subscriber, subscriberMethod);
