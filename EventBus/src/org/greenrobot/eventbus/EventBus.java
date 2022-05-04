@@ -55,8 +55,8 @@ public class EventBus {
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
     private final Map<Object, List<Class<?>>> typesBySubscriber;
     /**
-     * 粘性事件 ConcurrentHashMap
-     * key:Class<?> 事件类的 Class 对象，value: 当前最新的粘性事件
+     * 黏性事件 ConcurrentHashMap
+     * key:Class<?> 事件类的 Class 对象，value: 当前最新的黏性事件
      */
     private final Map<Class<?>, Object> stickyEvents;
 

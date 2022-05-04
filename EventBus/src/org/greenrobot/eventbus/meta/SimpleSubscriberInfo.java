@@ -21,7 +21,9 @@ import org.greenrobot.eventbus.SubscriberMethod;
  * Uses {@link SubscriberMethodInfo} objects to create {@link org.greenrobot.eventbus.SubscriberMethod} objects on demand.
  */
 public class SimpleSubscriberInfo extends AbstractSubscriberInfo {
-
+    /**
+     * 所有订阅者方法信息
+     */
     private final SubscriberMethodInfo[] methodInfos;
 
     public SimpleSubscriberInfo(Class subscriberClass, boolean shouldCheckSuperclass, SubscriberMethodInfo[] methodInfos) {
@@ -29,8 +31,14 @@ public class SimpleSubscriberInfo extends AbstractSubscriberInfo {
         this.methodInfos = methodInfos;
     }
 
+    /**
+     * 获取当前类的所有订阅者方法，该方法是同步方法
+     *
+     * @return SubscriberMethod[] 订阅者方法
+     */
     @Override
     public synchronized SubscriberMethod[] getSubscriberMethods() {
+        // 遍历订阅者方法信息集合，创建 SubscriberMethod
         int length = methodInfos.length;
         SubscriberMethod[] methods = new SubscriberMethod[length];
         for (int i = 0; i < length; i++) {

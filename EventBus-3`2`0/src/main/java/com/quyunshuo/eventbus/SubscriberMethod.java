@@ -33,7 +33,7 @@ public class SubscriberMethod {
     final Class<?> eventType;
     // 优先级
     final int priority;
-    // 是否是粘性事件
+    // 是否是黏性事件
     final boolean sticky;
     /**
      * Used for efficient comparison

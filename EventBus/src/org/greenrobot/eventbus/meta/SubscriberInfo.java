@@ -17,12 +17,23 @@ package org.greenrobot.eventbus.meta;
 
 import org.greenrobot.eventbus.SubscriberMethod;
 
-/** Base class for generated index classes created by annotation processing. */
+/**
+ * 索引类的信息类
+ */
 public interface SubscriberInfo {
+    /**
+     * 获取索引类的 Class 对象
+     */
     Class<?> getSubscriberClass();
 
+    /**
+     * 获取所有订阅者方法
+     */
     SubscriberMethod[] getSubscriberMethods();
 
+    /**
+     * 获取当前索引类的父类订阅者信息
+     */
     SubscriberInfo getSuperSubscriberInfo();
 
     boolean shouldCheckSuperclass();
