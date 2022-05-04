@@ -283,11 +283,17 @@ public class EventBus {
     }
 
     /**
-     * Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber.
+     * 按事件类型退订
+     * 只更新subscriptionsByEventType，不更新 typeBySubscriber！调用者必须更新 typesBySubscriber。
+     *
+     * @param subscriber Object 订阅者
+     * @param eventType  Class<?> 事件类型 Class 对象
      */
     private void unsubscribeByEventType(Object subscriber, Class<?> eventType) {
+        // 获取需要退订的事件类型的订阅者方法
         List<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         if (subscriptions != null) {
+            // 循环遍历移除当前订阅者的订阅者方法
             int size = subscriptions.size();
             for (int i = 0; i < size; i++) {
                 Subscription subscription = subscriptions.get(i);
@@ -302,14 +308,17 @@ public class EventBus {
     }
 
     /**
-     * Unregisters the given subscriber from all event classes.
+     * 从所有事件类中注销给定的订阅者
      */
     public synchronized void unregister(Object subscriber) {
+        // 获取订阅者接收的事件类型
         List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
         if (subscribedTypes != null) {
+            // 按事件类型遍历退订相关订阅方法
             for (Class<?> eventType : subscribedTypes) {
                 unsubscribeByEventType(subscriber, eventType);
             }
+            // 从订阅者所接收的事件类型Map中移除该订阅者
             typesBySubscriber.remove(subscriber);
         } else {
             logger.log(Level.WARNING, "Subscriber to unregister was not registered before: " + subscriber.getClass());
