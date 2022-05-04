@@ -20,7 +20,7 @@ package org.greenrobot.eventbus.meta;
  */
 public interface SubscriberInfoIndex {
     /**
-     * 获取订阅者信息类
+     * 获取指定 Class 对象的订阅者信息类
      *
      * @param subscriberClass Class<?> 订阅者 Class 对象
      * @return SubscriberInfo 订阅者信息类

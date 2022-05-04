@@ -33,7 +33,7 @@ public @interface Subscribe {
     ThreadMode threadMode() default ThreadMode.POSTING;
 
     /**
-     * 粘性事件标记
+     * 黏性事件标记
      */
     boolean sticky() default false;
 

@@ -54,7 +54,7 @@ public class EventBus {
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
     // key为订阅者 value为订阅者接收的事件类型 应该是用来判断这个订阅者是否已被注册过
     private final Map<Object, List<Class<?>>> typesBySubscriber;
-    // 粘性事件 key为粘性事件类型的Class对象  value为粘性事件的事件类实例
+    // 黏性事件 key为黏性事件类型的Class对象  value为黏性事件的事件类实例
     private final Map<Class<?>, Object> stickyEvents;
 
     // ThreadLocal实现了线程间的数据隔离
@@ -226,22 +226,22 @@ public class EventBus {
         // 将接收的事件类型add进该订阅者的接收事件类型列表中
         subscribedEvents.add(eventType);
 
-        // 判断是否是粘性事件
+        // 判断是否是黏性事件
         if (subscriberMethod.sticky) {
             if (eventInheritance) {
                 // Existing sticky events of all subclasses of eventType have to be considered.
                 // Note: Iterating over all events may be inefficient with lots of sticky events,
                 // thus data structure should be changed to allow a more efficient lookup
                 // (e.g. an additional map storing sub classes of super classes: Class -> List<Class>).
-                // 获取粘性事件Map里键值对的映射关系set
+                // 获取黏性事件Map里键值对的映射关系set
                 Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
                 // 遍历
                 for (Map.Entry<Class<?>, Object> entry : entries) {
                     // 遍历到的事件类型
                     Class<?> candidateEventType = entry.getKey();
-                    // 判断订阅方法的参数类型是否匹配现有的粘性事件类型
+                    // 判断订阅方法的参数类型是否匹配现有的黏性事件类型
                     if (eventType.isAssignableFrom(candidateEventType)) {
-                        // 获取到粘性事件
+                        // 获取到黏性事件
                         Object stickyEvent = entry.getValue();
                         //
                         checkPostStickyEventToSubscription(newSubscription, stickyEvent);
@@ -255,10 +255,10 @@ public class EventBus {
     }
 
     /**
-     * 将已有的粘性事件发布到订阅者
+     * 将已有的黏性事件发布到订阅者
      *
      * @param newSubscription 订阅者+订阅方法 的包装类
-     * @param stickyEvent     粘性事件
+     * @param stickyEvent     黏性事件
      */
     private void checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent) {
         if (stickyEvent != null) {
@@ -333,7 +333,7 @@ public class EventBus {
      * Posts the given event to the event bus.
      */
     /**
-     * 发送普通事件 & 粘性事件
+     * 发送普通事件 & 黏性事件
      *
      * @param event
      */
@@ -400,7 +400,7 @@ public class EventBus {
     }
 
     /**
-     * 将给定事件发布到事件总线上并保留该事件（因为它是粘性的）。事件类型的最新粘性*事件保留在内存中，以供订户以后使用{@link Subscribe＃sticky（）}访问。
+     * 将给定事件发布到事件总线上并保留该事件（因为它是黏性的）。事件类型的最新黏性*事件保留在内存中，以供订户以后使用{@link Subscribe＃sticky（）}访问。
      */
     public void postSticky(Object event) {
         synchronized (stickyEvents) {
@@ -411,9 +411,9 @@ public class EventBus {
     }
 
     /**
-     * 获取给定类型的最新粘性事件。
+     * 获取给定类型的最新黏性事件。
      *
-     * @see #postSticky(Object) 粘性事件的事件Class对象
+     * @see #postSticky(Object) 黏性事件的事件Class对象
      */
     public <T> T getStickyEvent(Class<T> eventType) {
         synchronized (stickyEvents) {
@@ -422,9 +422,9 @@ public class EventBus {
     }
 
     /**
-     * 删除并获取给定事件类型的最近粘性事件。
+     * 删除并获取给定事件类型的最近黏性事件。
      *
-     * @see #postSticky(Object) 粘性事件的事件Class对象
+     * @see #postSticky(Object) 黏性事件的事件Class对象
      */
     public <T> T removeStickyEvent(Class<T> eventType) {
         synchronized (stickyEvents) {
@@ -435,7 +435,7 @@ public class EventBus {
     /**
      * 如果该事件等于给定事件，则将其删除。
      *
-     * @return 如果事件匹配并且已删除粘性事件，则为true。
+     * @return 如果事件匹配并且已删除黏性事件，则为true。
      */
     public boolean removeStickyEvent(Object event) {
         synchronized (stickyEvents) {
@@ -451,7 +451,7 @@ public class EventBus {
     }
 
     /**
-     * 删除所有粘性事件
+     * 删除所有黏性事件
      */
     public void removeAllStickyEvents() {
         synchronized (stickyEvents) {
