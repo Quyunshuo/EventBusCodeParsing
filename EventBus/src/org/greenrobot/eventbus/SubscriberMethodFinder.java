@@ -87,11 +87,14 @@ class SubscriberMethodFinder {
             // 通过索引的方式进行查找
             subscriberMethods = findUsingInfo(subscriberClass);
         }
+        // 如果没有订阅者方法，就抛出 EventBusException 异常
         if (subscriberMethods.isEmpty()) {
             throw new EventBusException("Subscriber " + subscriberClass
                     + " and its super classes have no public methods with the @Subscribe annotation");
         } else {
+            // 将此订阅者和其订阅者方法添加进缓存中
             METHOD_CACHE.put(subscriberClass, subscriberMethods);
+            // 返回查找的订阅者方法
             return subscriberMethods;
         }
     }

@@ -53,6 +53,11 @@ public class EventBus {
      * key:Class<?> 事件类的 Class 对象， value:CopyOnWriteArrayList<Subscription> 订阅者方法信息集合
      */
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
+    /**
+     * 订阅者所接收的事件类型
+     * key:Object 订阅者， value:List<Class<?>> 所接收的事件类型的 Class 对象 List
+     * todo: 为什么不使用 Set？而是使用List?
+     */
     private final Map<Object, List<Class<?>>> typesBySubscriber;
     /**
      * 黏性事件 ConcurrentHashMap
@@ -120,7 +125,9 @@ public class EventBus {
         return new EventBusBuilder();
     }
 
-    /** For unit test primarily. */
+    /**
+     * For unit test primarily.
+     */
     public static void clearCaches() {
         SubscriberMethodFinder.clearCaches();
         eventTypesCache.clear();
@@ -178,49 +185,61 @@ public class EventBus {
         synchronized (this) {
             // 对订阅方法 List 进行遍历
             for (SubscriberMethod subscriberMethod : subscriberMethods) {
-                // 遍历到的每一个方法对其产生订阅关系
+                // 遍历到的每一个方法对其产生订阅关系，就是正式存放在订阅者的大集合中
                 subscribe(subscriber, subscriberMethod);
             }
         }
     }
 
     /**
-     * 产生订阅关系
+     * 产生订阅关系，实际上该方法主要就是将订阅方法放进那个大集合中，之前做的事情是将这些方法找出来
+     * 而此方法是正式将方法放入那些正式的大集合中
      * 必须在同步块中调用
      *
      * @param subscriber       Object 订阅者对象
      * @param subscriberMethod SubscriberMethod 订阅者方法
      */
     private void subscribe(Object subscriber, SubscriberMethod subscriberMethod) {
+        // 获取订阅者方法接收的事件类型 Class 对象
         Class<?> eventType = subscriberMethod.eventType;
+        // 创建 Subscription
         Subscription newSubscription = new Subscription(subscriber, subscriberMethod);
+        // 从 subscriptionsByEventType 中 尝试获取当前订阅方法接收的事件类型的值
         CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         if (subscriptions == null) {
+            // 如果为 null，表示该方法是第一个，创建空的CopyOnWriteArrayList put 进 subscriptionsByEventType
             subscriptions = new CopyOnWriteArrayList<>();
             subscriptionsByEventType.put(eventType, subscriptions);
         } else {
+            // 如果不为 null，判断现有数据中是否存在该方法，如果存在抛出 EventBusException 异常
             if (subscriptions.contains(newSubscription)) {
                 throw new EventBusException("Subscriber " + subscriber.getClass() + " already registered to event "
                         + eventType);
             }
         }
 
+        // 遍历当前事件类型的所有接收方法
         int size = subscriptions.size();
         for (int i = 0; i <= size; i++) {
+            // 这一步主要是将订阅者方法添加进 subscriptionsByEventType 数据中，并且会按照优先级进行插入
             if (i == size || subscriberMethod.priority > subscriptions.get(i).subscriberMethod.priority) {
                 subscriptions.add(i, newSubscription);
                 break;
             }
         }
-
+        // 获取当前订阅者接收的事件类型的数据
         List<Class<?>> subscribedEvents = typesBySubscriber.get(subscriber);
         if (subscribedEvents == null) {
             subscribedEvents = new ArrayList<>();
             typesBySubscriber.put(subscriber, subscribedEvents);
         }
+        // 将当前的事件类型添加进订阅者的接收范围内
         subscribedEvents.add(eventType);
 
+        // 对黏性事件进行处理
+        // TODO: 2022/5/4 黏性事件的处理放到对事件发布的阶段
         if (subscriberMethod.sticky) {
+            // 是否事件继承
             if (eventInheritance) {
                 // Existing sticky events of all subclasses of eventType have to be considered.
                 // Note: Iterating over all events may be inefficient with lots of sticky events,
@@ -263,7 +282,9 @@ public class EventBus {
         return typesBySubscriber.containsKey(subscriber);
     }
 
-    /** Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber. */
+    /**
+     * Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber.
+     */
     private void unsubscribeByEventType(Object subscriber, Class<?> eventType) {
         List<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         if (subscriptions != null) {
@@ -280,7 +301,9 @@ public class EventBus {
         }
     }
 
-    /** Unregisters the given subscriber from all event classes. */
+    /**
+     * Unregisters the given subscriber from all event classes.
+     */
     public synchronized void unregister(Object subscriber) {
         List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
         if (subscribedTypes != null) {
@@ -293,7 +316,9 @@ public class EventBus {
         }
     }
 
-    /** Posts the given event to the event bus. */
+    /**
+     * Posts the given event to the event bus.
+     */
     public void post(Object event) {
         PostingThreadState postingState = currentPostingThreadState.get();
         List<Object> eventQueue = postingState.eventQueue;
@@ -504,7 +529,9 @@ public class EventBus {
         }
     }
 
-    /** Looks up all Class objects including super classes and interfaces. Should also work for interfaces. */
+    /**
+     * Looks up all Class objects including super classes and interfaces. Should also work for interfaces.
+     */
     private static List<Class<?>> lookupAllEventTypes(Class<?> eventClass) {
         synchronized (eventTypesCache) {
             List<Class<?>> eventTypes = eventTypesCache.get(eventClass);
@@ -522,7 +549,9 @@ public class EventBus {
         }
     }
 
-    /** Recurses through super interfaces. */
+    /**
+     * Recurses through super interfaces.
+     */
     static void addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces) {
         for (Class<?> interfaceClass : interfaces) {
             if (!eventTypes.contains(interfaceClass)) {
@@ -583,7 +612,9 @@ public class EventBus {
         }
     }
 
-    /** For ThreadLocal, much faster to set (and get multiple values). */
+    /**
+     * For ThreadLocal, much faster to set (and get multiple values).
+     */
     final static class PostingThreadState {
         final List<Object> eventQueue = new ArrayList<>();
         boolean isPosting;
