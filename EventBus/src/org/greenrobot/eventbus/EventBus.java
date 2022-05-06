@@ -47,6 +47,11 @@ public class EventBus {
      * EventBus 构建者实例
      */
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
+    /**
+     * 事件所有类型缓存
+     * key: 事件 Class 对象
+     * value: 事件 Class 对象的所有父级 Class 对象，包括超类和接口
+     */
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<>();
     /**
      * 按照事件类型分类的订阅方法 HashMap
@@ -64,7 +69,9 @@ public class EventBus {
      * key:Class<?> 事件类的 Class 对象，value: 当前最新的黏性事件
      */
     private final Map<Class<?>, Object> stickyEvents;
-
+    /**
+     * ThreadLocal 线程间数据隔离，当前发布线程状态
+     */
     private final ThreadLocal<PostingThreadState> currentPostingThreadState = new ThreadLocal<PostingThreadState>() {
         @Override
         protected PostingThreadState initialValue() {
@@ -269,15 +276,19 @@ public class EventBus {
     }
 
     /**
-     * Checks if the current thread is running in the main thread.
-     * If there is no main thread support (e.g. non-Android), "true" is always returned. In that case MAIN thread
-     * subscribers are always called in posting thread, and BACKGROUND subscribers are always called from a background
-     * poster.
+     * 检查当前线程是否在主线程中运行。如果没有主线程支持（例如非 Android），则始终返回“true”。
+     * 在这种情况下，主线程订阅者总是在发布线程中被调用，而后台订阅者总是从后台发布者中调用。
      */
     private boolean isMainThread() {
         return mainThreadSupport == null || mainThreadSupport.isMainThread();
     }
 
+    /**
+     * 判断给定订阅者是否已经进行注册
+     *
+     * @param subscriber Object 订阅者
+     * @return 是否已经进行注册
+     */
     public synchronized boolean isRegistered(Object subscriber) {
         return typesBySubscriber.containsKey(subscriber);
     }
@@ -326,24 +337,34 @@ public class EventBus {
     }
 
     /**
-     * Posts the given event to the event bus.
+     * 将给定事件发布到事件总线
      */
     public void post(Object event) {
+        // 从当前线程中取得线程专属变量 PostingThreadState 实例
         PostingThreadState postingState = currentPostingThreadState.get();
+        // 拿到事件队列
         List<Object> eventQueue = postingState.eventQueue;
+        // 将事件入队
         eventQueue.add(event);
 
+        // 判断当前线程是否在发布事件中
         if (!postingState.isPosting) {
+            // 设置当前线程是否是主线程
             postingState.isMainThread = isMainThread();
+            // 将当前线程标记为正在发布
             postingState.isPosting = true;
+            // 如果 canceled 为 true，则是内部错误，中止状态未重置
             if (postingState.canceled) {
                 throw new EventBusException("Internal error. Abort state was not reset");
             }
             try {
+                // 队列不为空时，循环发布单个事件
                 while (!eventQueue.isEmpty()) {
+                    // 从事件队列中取出一个事件进行发布
                     postSingleEvent(eventQueue.remove(0), postingState);
                 }
             } finally {
+                // 发布完成后 重置状态
                 postingState.isPosting = false;
                 postingState.isMainThread = false;
             }
@@ -452,30 +473,57 @@ public class EventBus {
         return false;
     }
 
+    /**
+     * 发布单个事件
+     *
+     * @param event        Object 需要发布的事件
+     * @param postingState PostingThreadState 当前线程的发布状态
+     * @throws Error
+     */
     private void postSingleEvent(Object event, PostingThreadState postingState) throws Error {
+        // 获取事件的Class对象
         Class<?> eventClass = event.getClass();
+        // 订阅者是否找到
         boolean subscriptionFound = false;
+        // 判断是否处理事件继承
         if (eventInheritance) {
+            // 查找所有事件类型
             List<Class<?>> eventTypes = lookupAllEventTypes(eventClass);
+            // 循环遍历 所有类型
             int countTypes = eventTypes.size();
             for (int h = 0; h < countTypes; h++) {
                 Class<?> clazz = eventTypes.get(h);
+                // 按类型发布事件
                 subscriptionFound |= postSingleEventForEventType(event, postingState, clazz);
             }
         } else {
+            // 按类型发布事件
             subscriptionFound = postSingleEventForEventType(event, postingState, eventClass);
         }
+        // 如果没有找到对应的订阅关系
         if (!subscriptionFound) {
+            // 判断事件无匹配订阅函数时，是否打印信息
             if (logNoSubscriberMessages) {
                 logger.log(Level.FINE, "No subscribers registered for event " + eventClass);
             }
-            if (sendNoSubscriberEvent && eventClass != NoSubscriberEvent.class &&
-                    eventClass != SubscriberExceptionEvent.class) {
+            // 判断事件无匹配订阅函数时，是否发布 NoSubscriberEvent
+            if (sendNoSubscriberEvent
+                    && eventClass != NoSubscriberEvent.class
+                    && eventClass != SubscriberExceptionEvent.class) {
+                // 发布 NoSubscriberEvent
                 post(new NoSubscriberEvent(this, event));
             }
         }
     }
 
+    /**
+     * 通过事件类型发布单个事件
+     *
+     * @param event        Object 事件
+     * @param postingState PostingThreadState 当前线程的发布状态
+     * @param eventClass   eventClass 事件 Class 对象
+     * @return 是否找到订阅关系
+     */
     private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
         CopyOnWriteArrayList<Subscription> subscriptions;
         synchronized (this) {
@@ -539,32 +587,48 @@ public class EventBus {
     }
 
     /**
-     * Looks up all Class objects including super classes and interfaces. Should also work for interfaces.
+     * 查找所有事件类型
+     * 查找给定 Class 对象的所有 Class 对象，包括超类和接口，也应该适用于接口
+     * 该方法用于事件继承处理
      */
     private static List<Class<?>> lookupAllEventTypes(Class<?> eventClass) {
+        // 加锁 监视器为 eventTypesCache
         synchronized (eventTypesCache) {
+            // 尝试从事件类型缓存中获取该事件 Class 类型的缓存
             List<Class<?>> eventTypes = eventTypesCache.get(eventClass);
+            // 如果为 null 表示没有缓存
             if (eventTypes == null) {
                 eventTypes = new ArrayList<>();
                 Class<?> clazz = eventClass;
+                // 循环查找父级 Class 对象
                 while (clazz != null) {
+                    // 如果当前 clazz 不为 null，将此 Class 对象添加进 eventTypes
                     eventTypes.add(clazz);
+                    // 对当前 Class 实现的接口进行递归添加进 eventTypes
+                    // 因为类和接口属于两条线，所以在处理每个类的时候都要在此递归处理接口类型
                     addInterfaces(eventTypes, clazz.getInterfaces());
+                    // 将下一个需要处理的 Class 对象移至当前 Class 对象的父类
                     clazz = clazz.getSuperclass();
                 }
+                // 查找结束，将结果 put 进缓存中，以便下次复用结果
                 eventTypesCache.put(eventClass, eventTypes);
             }
+            // 返回事件所有 Class 对象
             return eventTypes;
         }
     }
 
     /**
-     * Recurses through super interfaces.
+     * 将给定 interfaces 添加进全部事件类型中
+     * 该方法会对每一个接口进行深入查找父类，直到全部类型查找结束，通过递归的方式
      */
     static void addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces) {
+        // 循环遍历当前的接口数组
         for (Class<?> interfaceClass : interfaces) {
+            // 判断所有事件类型中是否已经包含此类型，不包含的情况下将其添加进所有的事件类型
             if (!eventTypes.contains(interfaceClass)) {
                 eventTypes.add(interfaceClass);
+                // 对刚刚添加完的接口类型进一步深入查找父接口，通过递归的方式
                 addInterfaces(eventTypes, interfaceClass.getInterfaces());
             }
         }
