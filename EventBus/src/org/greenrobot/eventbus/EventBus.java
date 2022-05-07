@@ -572,16 +572,21 @@ public class EventBus {
     private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
         // 按照订阅者方法指定的线程模式进行针对性处理
         switch (subscription.subscriberMethod.threadMode) {
+            // 发布线程
             case POSTING:
                 invokeSubscriber(subscription, event);
                 break;
+            // Android 上为主线程，非 Android 与 POSTING 一致
             case MAIN:
+                // 判断是否是主线程，如果是主线程，直接调用 void invokeSubscriber(Subscription subscription, Object event) 方法进行在当前线程中发布事件
                 if (isMainThread) {
                     invokeSubscriber(subscription, event);
                 } else {
+                    // 不是主线程，将该事件入队到主线程事件发布器处理
                     mainThreadPoster.enqueue(subscription, event);
                 }
                 break;
+            // Android 上为主线程，并且按顺序发布，非 Android 与 POSTING 一致
             case MAIN_ORDERED:
                 if (mainThreadPoster != null) {
                     mainThreadPoster.enqueue(subscription, event);
@@ -590,6 +595,7 @@ public class EventBus {
                     invokeSubscriber(subscription, event);
                 }
                 break;
+            // Android 上为后台线程调用，非 Android 与 POSTING 一致
             case BACKGROUND:
                 if (isMainThread) {
                     backgroundPoster.enqueue(subscription, event);
@@ -597,6 +603,7 @@ public class EventBus {
                     invokeSubscriber(subscription, event);
                 }
                 break;
+            // 使用单独的线程处理，基于线程池
             case ASYNC:
                 asyncPoster.enqueue(subscription, event);
                 break;
@@ -668,20 +675,38 @@ public class EventBus {
         }
     }
 
+    /**
+     * 在当前线程直接调用订阅者方法
+     *
+     * @param subscription Subscription 订阅者及方法
+     * @param event        Object 事件
+     */
     void invokeSubscriber(Subscription subscription, Object event) {
         try {
+            // 调用订阅者的订阅方法，将事件作为参数传递
             subscription.subscriberMethod.method.invoke(subscription.subscriber, event);
         } catch (InvocationTargetException e) {
+            // 如果产生调用目标异常，就处理该异常
             handleSubscriberException(subscription, event, e.getCause());
         } catch (IllegalAccessException e) {
+            // 如果是非法访问 直接抛出异常
             throw new IllegalStateException("Unexpected exception", e);
         }
     }
 
+    /**
+     * 处理订阅者方法异常
+     *
+     * @param subscription Subscription 订阅者及方法
+     * @param event        Object 事件
+     * @param cause        Throwable 异常
+     */
     private void handleSubscriberException(Subscription subscription, Object event, Throwable cause) {
+        // 判断是否是 EventBus 内部发布的 SubscriberExceptionEvent
         if (event instanceof SubscriberExceptionEvent) {
+            // 判断订阅函数执行有异常时，是否打印异常信息
             if (logSubscriberExceptions) {
-                // Don't send another SubscriberExceptionEvent to avoid infinite event recursion, just log
+                // 不要发送另一个 SubscriberExceptionEvent 以避免无限事件递归，只需记录
                 logger.log(Level.SEVERE, "SubscriberExceptionEvent subscriber " + subscription.subscriber.getClass()
                         + " threw an exception", cause);
                 SubscriberExceptionEvent exEvent = (SubscriberExceptionEvent) event;
@@ -689,16 +714,20 @@ public class EventBus {
                         + exEvent.causingSubscriber, exEvent.throwable);
             }
         } else {
+            // 如果订阅者方法执行有异常时，是否抛出 SubscriberException
             if (throwSubscriberException) {
                 throw new EventBusException("Invoking subscriber failed", cause);
             }
+            // 判断订阅函数执行有异常时，是否打印异常信息
             if (logSubscriberExceptions) {
                 logger.log(Level.SEVERE, "Could not dispatch event: " + event.getClass() + " to subscribing class "
                         + subscription.subscriber.getClass(), cause);
             }
+            // 订阅函数执行有异常时，发布 SubscriberExceptionEvent 事件，该事件还会到该方法进行处理
             if (sendSubscriberExceptionEvent) {
                 SubscriberExceptionEvent exEvent = new SubscriberExceptionEvent(this, cause, event,
                         subscription.subscriber);
+                // 发布事件
                 post(exEvent);
             }
         }
