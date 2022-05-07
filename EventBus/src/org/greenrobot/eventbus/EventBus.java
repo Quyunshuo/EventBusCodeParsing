@@ -526,32 +526,51 @@ public class EventBus {
      */
     private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
         CopyOnWriteArrayList<Subscription> subscriptions;
+        // 加锁 监视器为当前对象
         synchronized (this) {
+            // 获取该 Class 对象的订阅方法 List
             subscriptions = subscriptionsByEventType.get(eventClass);
         }
         if (subscriptions != null && !subscriptions.isEmpty()) {
+            // 如果存在订阅方法，就进行遍历操作
             for (Subscription subscription : subscriptions) {
+                // 将事件和订阅方法赋值给 postingState
                 postingState.event = event;
                 postingState.subscription = subscription;
+                // 是否中止
                 boolean aborted;
                 try {
+                    // 将事件发布到订阅者
                     postToSubscription(subscription, event, postingState.isMainThread);
+                    // 是否已经取消发布
                     aborted = postingState.canceled;
                 } finally {
+                    // 重置 postingState 状态
                     postingState.event = null;
                     postingState.subscription = null;
                     postingState.canceled = false;
                 }
+                // 如果已经中止，就跳出循环
                 if (aborted) {
                     break;
                 }
             }
+            // 方法体结束，返回找到订阅关系
             return true;
         }
+        // 到此步骤表示没有订阅方法，返回 false
         return false;
     }
 
+    /**
+     * 将事件发布到订阅者
+     *
+     * @param subscription Subscription 订阅关系
+     * @param event        Object 事件
+     * @param isMainThread boolean 是否是主线程
+     */
     private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
+        // 按照订阅者方法指定的线程模式进行针对性处理
         switch (subscription.subscriberMethod.threadMode) {
             case POSTING:
                 invokeSubscriber(subscription, event);
@@ -689,11 +708,17 @@ public class EventBus {
      * For ThreadLocal, much faster to set (and get multiple values).
      */
     final static class PostingThreadState {
+        // 事件队列
         final List<Object> eventQueue = new ArrayList<>();
+        // 是否在发布
         boolean isPosting;
+        // 是否是主线程
         boolean isMainThread;
+        // 订阅关系
         Subscription subscription;
+        // 正在发送的事件
         Object event;
+        // 是否已经取消
         boolean canceled;
     }
 
