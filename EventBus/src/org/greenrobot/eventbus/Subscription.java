@@ -17,8 +17,9 @@ package org.greenrobot.eventbus;
 
 /**
  * 订阅者方法包装类  可以视为一个订阅方法的信息
+ * todo: 为此类统一抽象定义
  */
-final class Subscription {
+public final class Subscription {
     /**
      * 订阅者
      */
@@ -34,7 +35,7 @@ final class Subscription {
      */
     volatile boolean active;
 
-    Subscription(Object subscriber, SubscriberMethod subscriberMethod) {
+    public Subscription(Object subscriber, SubscriberMethod subscriberMethod) {
         this.subscriber = subscriber;
         this.subscriberMethod = subscriberMethod;
         active = true;

@@ -25,8 +25,8 @@ public interface Poster {
     /**
      * 将要为特定订阅发布的事件排入队列
      *
-     * @param subscription 接收事件的订阅方法
-     * @param event        将发布给订阅者的事件
+     * @param subscription Subscription 接收事件的订阅方法
+     * @param event        Object 将发布给订阅者的事件
      */
     void enqueue(Subscription subscription, Object event);
 }

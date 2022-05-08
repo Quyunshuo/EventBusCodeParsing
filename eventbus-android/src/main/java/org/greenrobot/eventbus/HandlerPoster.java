@@ -31,12 +31,21 @@ import android.os.SystemClock;
  */
 public class HandlerPoster extends Handler implements Poster {
 
+    // 事件队列
     private final PendingPostQueue queue;
     // 处理消息最大间隔时间 默认10ms
     private final int maxMillisInsideHandleMessage;
     private final EventBus eventBus;
+    // 此 Handle 是否活跃
     private boolean handlerActive;
 
+    /**
+     * 唯一构造
+     *
+     * @param eventBus                     EventBus
+     * @param looper                       Looper 主线程的 Looper
+     * @param maxMillisInsideHandleMessage int 超时时间
+     */
     public HandlerPoster(EventBus eventBus, Looper looper, int maxMillisInsideHandleMessage) {
         super(looper);
         this.eventBus = eventBus;
@@ -44,12 +53,26 @@ public class HandlerPoster extends Handler implements Poster {
         queue = new PendingPostQueue();
     }
 
+    /**
+     * 入队
+     *
+     * @param subscription Subscription 接收事件的订阅方法
+     * @param event        Object 将发布给订阅者的事件
+     */
     public void enqueue(Subscription subscription, Object event) {
+        // 获取一个 PendingPost，实际上将 subscription、event 包装成为一个 PendingPost
         PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
+        // 加锁 监视器为当前对象
         synchronized (this) {
+            // 将获取到的 PendingPost 包装类入队
             queue.enqueue(pendingPost);
+            // 判断此发布器是否活跃，如果活跃就不执行，此时该事件被丢弃
             if (!handlerActive) {
+                // 将发布器设置为活跃状态
                 handlerActive = true;
+                // sendMessage
+                // 划重点!!!
+                // 此处没有使用 new Message()，而是使用了 obtainMessage()，该方法将从全局的消息对象池中复用旧的对象，这比直接创建要更高效
                 if (!sendMessage(obtainMessage())) {
                     throw new EventBusException("Could not send handler message");
                 }
@@ -61,7 +84,9 @@ public class HandlerPoster extends Handler implements Poster {
     public void handleMessage(Message msg) {
         boolean rescheduled = false;
         try {
+            // 获取一个开始时间
             long started = SystemClock.uptimeMillis();
+            // 死循环
             while (true) {
                 PendingPost pendingPost = queue.poll();
                 if (pendingPost == null) {

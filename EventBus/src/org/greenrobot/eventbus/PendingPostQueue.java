@@ -16,14 +16,34 @@
 
 package org.greenrobot.eventbus;
 
-final class PendingPostQueue {
+/**
+ * 待发布队列
+ * 其实现使用的是 内存指针 https://www.jianshu.com/p/5bb6595c0b59
+ * 解析：
+ * ```
+ * 入队一个元素：obj1
+ * PendingPostQueue:
+ *        head:obj1
+ *               next:null
+ *        tail:obj1
+ *               next:null
+ * ```
+ */
+public final class PendingPostQueue {
+    // 头部
     private PendingPost head;
+    // 尾部
     private PendingPost tail;
 
-    synchronized void enqueue(PendingPost pendingPost) {
+    /**
+     * 入队
+     * @param pendingPost PendingPost
+     */
+    public synchronized void enqueue(PendingPost pendingPost) {
         if (pendingPost == null) {
             throw new NullPointerException("null cannot be enqueued");
         }
+        // 尾部不为空，证明队列中已存在其他元素
         if (tail != null) {
             tail.next = pendingPost;
             tail = pendingPost;
@@ -35,7 +55,7 @@ final class PendingPostQueue {
         notifyAll();
     }
 
-    synchronized PendingPost poll() {
+    public synchronized PendingPost poll() {
         PendingPost pendingPost = head;
         if (head != null) {
             head = head.next;
@@ -46,7 +66,7 @@ final class PendingPostQueue {
         return pendingPost;
     }
 
-    synchronized PendingPost poll(int maxMillisToWait) throws InterruptedException {
+    public synchronized PendingPost poll(int maxMillisToWait) throws InterruptedException {
         if (head == null) {
             wait(maxMillisToWait);
         }
