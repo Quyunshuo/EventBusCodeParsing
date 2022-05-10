@@ -589,14 +589,17 @@ public class EventBus {
             // Android 上为主线程，并且按顺序发布，非 Android 与 POSTING 一致
             case MAIN_ORDERED:
                 if (mainThreadPoster != null) {
+                    // 不考虑当前的线程环境，直接入队，保证顺序
                     mainThreadPoster.enqueue(subscription, event);
                 } else {
+                    // 不是主线程，将该事件入队到主线程事件发布器处理
                     // temporary: technically not correct as poster not decoupled from subscriber
                     invokeSubscriber(subscription, event);
                 }
                 break;
             // Android 上为后台线程调用，非 Android 与 POSTING 一致
             case BACKGROUND:
+                // 主线程发布的事件才会被入队到 backgroundPoster，非主线程发布的事件会被直接调用订阅者方法发布事件
                 if (isMainThread) {
                     backgroundPoster.enqueue(subscription, event);
                 } else {
@@ -605,6 +608,7 @@ public class EventBus {
                 break;
             // 使用单独的线程处理，基于线程池
             case ASYNC:
+                // 入队 asyncPoster，该线程模式总是在非发布线程处理订阅者方法的调用
                 asyncPoster.enqueue(subscription, event);
                 break;
             default:
@@ -753,6 +757,11 @@ public class EventBus {
         boolean canceled;
     }
 
+    /**
+     * 获取当前的线程池
+     *
+     * @return ExecutorService
+     */
     ExecutorService getExecutorService() {
         return executorService;
     }

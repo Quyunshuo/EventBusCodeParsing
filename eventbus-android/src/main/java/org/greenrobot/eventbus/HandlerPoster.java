@@ -21,7 +21,7 @@ import android.os.Message;
 import android.os.SystemClock;
 
 /**
- * Handle 发布事件程序
+ * 主线程事件发布器，基于 Handler 是实现
  * 实现了 Poster 接口，这就是一个普通的 Handler，只是它的 Looper 使用的是主线程的 「Main Looper」，可以将消息分发到主线程中
  * enqueue() 方法并不会每次都发送 Message 激活 handleMessage()，这是通过 handlerActive 标志位进行控制的
  * 那么 enqueue() 中那些没有被消费的事件该怎么消费呢？答案是 handleMessage() 中的 while 死循环
