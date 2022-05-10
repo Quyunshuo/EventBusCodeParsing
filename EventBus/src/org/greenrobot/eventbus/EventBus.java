@@ -661,16 +661,18 @@ public class EventBus {
     }
 
     /**
-     * Invokes the subscriber if the subscriptions is still active. Skipping subscriptions prevents race conditions
-     * between {@link #unregister(Object)} and event delivery. Otherwise the event might be delivered after the
-     * subscriber unregistered. This is particularly important for main thread delivery and registrations bound to the
-     * live cycle of an Activity or Fragment.
+     * 调用订阅者方法 该方法主要做了一些取值、释放、判断的操作，具体执行步骤在重载方法 {@link #invokeSubscriber(Subscription, Object)}中
+     * 如果订阅仍处于活动状态，则调用订阅者；跳过订阅可防止 {@link #unregister(Object)} 和事件传递之间的竞争条件，否则，事件可能会在订阅者注销后传递。
+     * 这对于绑定到 Activity 或 Fragment 的生命周期的主线程交付和注册尤其重要。
      */
     void invokeSubscriber(PendingPost pendingPost) {
         Object event = pendingPost.event;
         Subscription subscription = pendingPost.subscription;
+        // 释放 pendingPost，准备下次复用
         PendingPost.releasePendingPost(pendingPost);
+        // 判断订阅关系是否活跃
         if (subscription.active) {
+            // 调用订阅方法进行发布事件
             invokeSubscriber(subscription, event);
         }
     }
@@ -683,7 +685,7 @@ public class EventBus {
      */
     void invokeSubscriber(Subscription subscription, Object event) {
         try {
-            // 调用订阅者的订阅方法，将事件作为参数传递
+            // 调用订阅者的订阅方法，将事件作为参数传递（反射调用）
             subscription.subscriberMethod.method.invoke(subscription.subscriber, event);
         } catch (InvocationTargetException e) {
             // 如果产生调用目标异常，就处理该异常
