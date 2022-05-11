@@ -244,33 +244,42 @@ public class EventBus {
         subscribedEvents.add(eventType);
 
         // 对黏性事件进行处理
-        // TODO: 2022/5/4 黏性事件的处理放到对事件发布的阶段
         if (subscriberMethod.sticky) {
             // 是否事件继承
             if (eventInheritance) {
-                // Existing sticky events of all subclasses of eventType have to be considered.
-                // Note: Iterating over all events may be inefficient with lots of sticky events,
-                // thus data structure should be changed to allow a more efficient lookup
-                // (e.g. an additional map storing sub classes of super classes: Class -> List<Class>).
+                // 必须考虑所有 eventType 子类的现有粘性事件。
+                // Note: 迭代所有事件可能会因大量粘性事件而效率低下，因此应更改数据结构以允许更有效的查找
+                // (e.g. 存储超类的子类的附加映射: Class -> List<Class>).
                 Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
                 for (Map.Entry<Class<?>, Object> entry : entries) {
                     Class<?> candidateEventType = entry.getKey();
+                    // 判断 eventType 是否是 candidateEventType 的父类或父接口
                     if (eventType.isAssignableFrom(candidateEventType)) {
                         Object stickyEvent = entry.getValue();
+                        // 如果是父子关系  进行事件检查和发布
                         checkPostStickyEventToSubscription(newSubscription, stickyEvent);
                     }
                 }
             } else {
+                // 从黏性事件 Map 中获取当前事件类型的最新事件
                 Object stickyEvent = stickyEvents.get(eventType);
+                // 校验事件并发布事件
                 checkPostStickyEventToSubscription(newSubscription, stickyEvent);
             }
         }
     }
 
+    /**
+     * 检查黏性事件并发布到订阅者
+     *
+     * @param newSubscription Subscription 订阅关系
+     * @param stickyEvent     Object 黏性事件
+     */
     private void checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent) {
         if (stickyEvent != null) {
-            // If the subscriber is trying to abort the event, it will fail (event is not tracked in posting state)
+            // 如果订阅者试图中止事件，它将失败（在发布状态下不跟踪事件）
             // --> Strange corner case, which we don't take care of here.
+            // 将事件发布到订阅者
             postToSubscription(newSubscription, stickyEvent, isMainThread());
         }
     }
