@@ -16,25 +16,33 @@
 package org.greenrobot.eventbus;
 
 /**
- * This Event is posted by EventBus when an exception occurs inside a subscriber's event handling method.
- * 
+ * 当订阅者的事件处理方法内部发生异常时，由 EventBus 发布此事件。
+ *
  * @author Markus
  */
 public final class SubscriberExceptionEvent {
-    /** The {@link EventBus} instance to with the original event was posted to. */
+    /**
+     * The {@link EventBus} instance to with the original event was posted to.
+     */
     public final EventBus eventBus;
 
-    /** The Throwable thrown by a subscriber. */
+    /**
+     * 订阅者抛出的 Throwable。
+     */
     public final Throwable throwable;
 
-    /** The original event that could not be delivered to any subscriber. */
+    /**
+     * 无法传递给任何订阅者的原始事件
+     */
     public final Object causingEvent;
 
-    /** The subscriber that threw the Throwable. */
+    /**
+     * 抛出 Throwable 的订阅者。
+     */
     public final Object causingSubscriber;
 
     public SubscriberExceptionEvent(EventBus eventBus, Throwable throwable, Object causingEvent,
-            Object causingSubscriber) {
+                                    Object causingSubscriber) {
         this.eventBus = eventBus;
         this.throwable = throwable;
         this.causingEvent = causingEvent;

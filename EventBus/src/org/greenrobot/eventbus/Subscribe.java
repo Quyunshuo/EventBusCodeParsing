@@ -23,22 +23,31 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * 订阅注解，用于标记订阅者方法
+ */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})
 public @interface Subscribe {
+
+    /**
+     * 线程模式，默认值 {@link ThreadMode#POSTING}
+     */
     ThreadMode threadMode() default ThreadMode.POSTING;
 
     /**
-     * If true, delivers the most recent sticky event (posted with
-     * {@link EventBus#postSticky(Object)}) to this subscriber (if event available).
+     * 是否是黏性事件，默认值为 false
+     * 如果为 true，则将最近的粘性事件（使用 {@link EventBus#postSticky(Object)} 发布）传递给该订阅者（如果事件可用）。
      */
     boolean sticky() default false;
 
-    /** Subscriber priority to influence the order of event delivery.
-     * Within the same delivery thread ({@link ThreadMode}), higher priority subscribers will receive events before
-     * others with a lower priority. The default priority is 0. Note: the priority does *NOT* affect the order of
-     * delivery among subscribers with different {@link ThreadMode}s! */
+    /**
+     * 订阅者优先级影响事件传递的顺序。
+     * 在同一交付线程 ({@link ThreadMode}) 中，优先级较高的订阅者将在其他优先级较低的订阅者之前收到事件。
+     * 默认优先级为 0。
+     * 注意：优先级不影响具有不同 {@link ThreadMode} 的订阅者之间的传递顺序！
+     */
     int priority() default 0;
 }
 

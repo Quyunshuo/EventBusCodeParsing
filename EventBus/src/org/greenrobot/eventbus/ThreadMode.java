@@ -16,53 +16,50 @@
 package org.greenrobot.eventbus;
 
 /**
- * Each subscriber method has a thread mode, which determines in which thread the method is to be called by EventBus.
- * EventBus takes care of threading independently of the posting thread.
+ * 每个订阅者方法都有一个线程模式，它决定了 EventBus 将在哪个线程中调用该方法。 EventBus 独立于发布线程处理线程。
  *
  * @see EventBus#register(Object)
  */
 public enum ThreadMode {
     /**
-     * This is the default. Subscriber will be called directly in the same thread, which is posting the event. Event delivery
-     * implies the least overhead because it avoids thread switching completely. Thus, this is the recommended mode for
-     * simple tasks that are known to complete in a very short time without requiring the main thread. Event handlers
-     * using this mode must return quickly to avoid blocking the posting thread, which may be the main thread.
+     * 这是默认设置。事件交付是同步完成的，一旦发布完成，所有订阅者都将被调用。
+     * 此线程模式意味着最小的开销，因为它完全避免了线程切换。
+     * 因此，对于已知无需主线程的非常短的时间完成的简单任务，这是推荐的模式。
+     * 使用此模式的事件处理程序应该快速返回，以避免阻止发布线程，该线程可能是主线程。
      */
     POSTING,
 
     /**
-     * On Android, subscriber will be called in Android's main thread (UI thread). If the posting thread is
-     * the main thread, subscriber methods will be called directly, blocking the posting thread. Otherwise the event
-     * is queued for delivery (non-blocking). Subscribers using this mode must return quickly to avoid blocking the main thread.
-     * <p>
-     * If not on Android, behaves the same as {@link #POSTING}.
+     * 在 Android 上, 订阅者将在 Android 的主线程（UI 线程）中调用. 如果发布线程是主线程, 订阅者方法将被直接调用, 阻塞发布线程. 否则，事件将排队等待传递（非阻塞）。
+     * 使用这种模式的订阅者必须快速返回以避免阻塞主线程。
+     * 如果不在 Android 上，其行为与 {@link #POSTING} 相同。
      */
     MAIN,
 
     /**
-     * On Android, subscriber will be called in Android's main thread (UI thread). Different from {@link #MAIN},
-     * the event will always be queued for delivery. This ensures that the post call is non-blocking.
-     * <p>
-     * If not on Android, behaves the same as {@link #POSTING}.
+     * 在 Android 上，订阅者将在 Android 的主线程（UI 线程）中被调用。与 {@link #MAIN} 不同，该事件将始终排队等待传递。这确保了 post 调用是非阻塞的。
+     * 这给了事件处理一个更严格、更一致的顺序（因此名为MAIN_ORDERED）。
+     * 例如，如果您在具有主线程模式的事件处理程序中发布另一个事件，
+     * 则第二个事件处理程序将在第一个事件处理程序之前完成（因为它是同步调用的-将其与方法调用进行比较）。
+     * 使用MAIN_ORDERED，第一个事件处理程序将完成，然后第二个事件处理程序将在稍后时间点调用（一旦主线程具有容量）。
+     * 使用此模式的事件处理程序必须快速返回，以避免阻止主线程
+     * 如果不在 Android 上，其行为与 {@link #POSTING} 相同。
      */
     MAIN_ORDERED,
 
     /**
-     * On Android, subscriber will be called in a background thread. If posting thread is not the main thread, subscriber methods
-     * will be called directly in the posting thread. If the posting thread is the main thread, EventBus uses a single
-     * background thread, that will deliver all its events sequentially. Subscribers using this mode should try to
-     * return quickly to avoid blocking the background thread.
-     * <p>
-     * If not on Android, always uses a background thread.
+     * 在 Android 上，订阅者将在后台线程中调用。如果发布线程不是主线程，订阅者方法将直接在发布线程中调用。
+     * 如果发布线程是主线程，EventBus 使用单个后台线程，它将按顺序传递其所有事件。
+     * 使用此模式的订阅者应尽量快速返回以避免阻塞后台线程。
+     * 如果不在 Android 上，则始终使用后台线程。
      */
     BACKGROUND,
 
     /**
-     * Subscriber will be called in a separate thread. This is always independent of the posting thread and the
-     * main thread. Posting events never wait for subscriber methods using this mode. Subscriber methods should
-     * use this mode if their execution might take some time, e.g. for network access. Avoid triggering a large number
-     * of long-running asynchronous subscriber methods at the same time to limit the number of concurrent threads. EventBus
-     * uses a thread pool to efficiently reuse threads from completed asynchronous subscriber notifications.
+     * 这总是独立于发布线程和主线程。发布事件永远不会等待使用此模式的事件处理程序方法。
+     * 如果事件处理程序方法的执行可能需要一些时间，例如网络访问，则应使用此模式。
+     * 避免同时触发大量长期运行的异步处理程序方法，以限制并发线程的数量。
+     * EventBus使用线程池从已完成的异步事件处理程序通知中高效地重用线程。
      */
     ASYNC
 }
