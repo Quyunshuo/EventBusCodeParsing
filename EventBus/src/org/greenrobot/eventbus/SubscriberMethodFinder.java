@@ -326,6 +326,9 @@ class SubscriberMethodFinder {
         }
     }
 
+    /**
+     * 用于测试
+     */
     static void clearCaches() {
         METHOD_CACHE.clear();
     }

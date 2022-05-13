@@ -133,7 +133,7 @@ public class EventBus {
     }
 
     /**
-     * For unit test primarily.
+     * 主要用于单元测试。
      */
     public static void clearCaches() {
         SubscriberMethodFinder.clearCaches();
@@ -381,25 +381,30 @@ public class EventBus {
     }
 
     /**
-     * Called from a subscriber's event handling method, further event delivery will be canceled. Subsequent
-     * subscribers
-     * won't receive the event. Events are usually canceled by higher priority subscribers (see
-     * {@link Subscribe#priority()}). Canceling is restricted to event handling methods running in posting thread
-     * {@link ThreadMode#POSTING}.
+     * 取消事件传递
+     * 从订阅者的事件处理方法调用，将取消进一步的事件传递。后续订阅者不会收到事件。
+     * 事件通常被更高优先级的订阅者取消（参见 {@link Subscribe#priority()}）.
+     * 取消仅限于在发布线程中运行的事件处理方法 {@link ThreadMode#POSTING}.
      */
     public void cancelEventDelivery(Object event) {
+        // 从 ThreadLocal 获取当前线程的状态
         PostingThreadState postingState = currentPostingThreadState.get();
         if (!postingState.isPosting) {
+            // 如果当前线程不在发布抛出异常
             throw new EventBusException(
                     "This method may only be called from inside event handling methods on the posting thread");
         } else if (event == null) {
+            // 事件为 null
             throw new EventBusException("Event may not be null");
         } else if (postingState.event != event) {
+            // 正在发布的事件不是当前事件
             throw new EventBusException("Only the currently handled event may be aborted");
         } else if (postingState.subscription.subscriberMethod.threadMode != ThreadMode.POSTING) {
+            // 线程模式不是 ThreadMode.POSTING
             throw new EventBusException(" event handlers may only abort the incoming event");
         }
 
+        // 设置为取消状态
         postingState.canceled = true;
     }
 
@@ -472,16 +477,26 @@ public class EventBus {
         }
     }
 
+    /**
+     * 给定的事件是否有订阅者
+     * @param eventClass Class<?> 事件 Class 对象
+     * @return 是否有订阅者
+     */
     public boolean hasSubscriberForEvent(Class<?> eventClass) {
+        // TODO: 2022/5/13 为什么不判断是否进行事件继承处理 {@link #eventInheritance}
+        // 查找所有事件类型
         List<Class<?>> eventTypes = lookupAllEventTypes(eventClass);
         if (eventTypes != null) {
             int countTypes = eventTypes.size();
+            // 遍历获取到的所有事件的类型（父类、接口等）
             for (int h = 0; h < countTypes; h++) {
                 Class<?> clazz = eventTypes.get(h);
                 CopyOnWriteArrayList<Subscription> subscriptions;
                 synchronized (this) {
+                    // 从事件类型分类的订阅者方法 Map 中获取该类型的订阅者方法
                     subscriptions = subscriptionsByEventType.get(clazz);
                 }
+                // 对结果进行判断
                 if (subscriptions != null && !subscriptions.isEmpty()) {
                     return true;
                 }
@@ -784,13 +799,13 @@ public class EventBus {
     }
 
     /**
-     * For internal use only.
+     * 仅限内部使用
      */
     public Logger getLogger() {
         return logger;
     }
 
-    // Just an idea: we could provide a callback to post() to be notified, an alternative would be events, of course...
+    // 只是一个想法：我们可以为 post() 提供回调以得到通知，当然，另一种选择是事件......
     /* public */interface PostCallback {
         void onPostCompleted(List<SubscriberExceptionEvent> exceptionEvents);
     }
