@@ -404,30 +404,35 @@ public class EventBus {
     }
 
     /**
-     * Posts the given event to the event bus and holds on to the event (because it is sticky). The most recent sticky
-     * event of an event's type is kept in memory for future access by subscribers using {@link Subscribe#sticky()}.
+     * 将给定事件发布到事件总线并保留该事件（因为它是黏性的）.
+     * 事件类型的最新粘性事件保存在内存中，供订阅者使用 {@link Subscribe#sticky()} 将来访问。
      */
     public void postSticky(Object event) {
+        // 加锁 监视器为黏性事件 Map
         synchronized (stickyEvents) {
+            // 将事件存入内存中 以事件的 Class 对象为 key，事件实例为 value
             stickyEvents.put(event.getClass(), event);
         }
-        // Should be posted after it is putted, in case the subscriber wants to remove immediately
+        // 放置后应发布，以防订阅者想立即删除
         post(event);
     }
 
     /**
-     * Gets the most recent sticky event for the given type.
+     * 获取给定类型的最新粘性事件
      *
      * @see #postSticky(Object)
      */
     public <T> T getStickyEvent(Class<T> eventType) {
+        // 加锁 监视器为黏性事件 Map
         synchronized (stickyEvents) {
+            // Map.get() 返回的是 Object 类型，所以使用了 Class.cast() 方法进行强转为调用者所表示的类型
             return eventType.cast(stickyEvents.get(eventType));
         }
     }
 
     /**
-     * Remove and gets the recent sticky event for the given event type.
+     * 删除并获取给定事件类型的最近粘性事件。
+     * 同 {@link #getStickyEvent(Class)} 方法差不多，只是该方法是移除事件
      *
      * @see #postSticky(Object)
      */
@@ -438,14 +443,17 @@ public class EventBus {
     }
 
     /**
-     * Removes the sticky event if it equals to the given event.
+     * 移除给定的事件
      *
-     * @return true if the events matched and the sticky event was removed.
+     * @return 如果事件匹配并且粘性事件被删除，则为 true
      */
     public boolean removeStickyEvent(Object event) {
+        // 同样的操作 对黏性事件 Map 加锁
         synchronized (stickyEvents) {
             Class<?> eventType = event.getClass();
+            // 获取事件类型在 Map 中的事件
             Object existingEvent = stickyEvents.get(eventType);
+            // 进行对比
             if (event.equals(existingEvent)) {
                 stickyEvents.remove(eventType);
                 return true;
@@ -456,7 +464,7 @@ public class EventBus {
     }
 
     /**
-     * Removes all sticky events.
+     * 删除所有粘性事件
      */
     public void removeAllStickyEvents() {
         synchronized (stickyEvents) {
