@@ -244,33 +244,42 @@ public class EventBus {
         subscribedEvents.add(eventType);
 
         // 对黏性事件进行处理
-        // TODO: 2022/5/4 黏性事件的处理放到对事件发布的阶段
         if (subscriberMethod.sticky) {
             // 是否事件继承
             if (eventInheritance) {
-                // Existing sticky events of all subclasses of eventType have to be considered.
-                // Note: Iterating over all events may be inefficient with lots of sticky events,
-                // thus data structure should be changed to allow a more efficient lookup
-                // (e.g. an additional map storing sub classes of super classes: Class -> List<Class>).
+                // 必须考虑所有 eventType 子类的现有粘性事件。
+                // Note: 迭代所有事件可能会因大量粘性事件而效率低下，因此应更改数据结构以允许更有效的查找
+                // (e.g. 存储超类的子类的附加映射: Class -> List<Class>).
                 Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
                 for (Map.Entry<Class<?>, Object> entry : entries) {
                     Class<?> candidateEventType = entry.getKey();
+                    // 判断 eventType 是否是 candidateEventType 的父类或父接口
                     if (eventType.isAssignableFrom(candidateEventType)) {
                         Object stickyEvent = entry.getValue();
+                        // 如果是父子关系  进行事件检查和发布
                         checkPostStickyEventToSubscription(newSubscription, stickyEvent);
                     }
                 }
             } else {
+                // 从黏性事件 Map 中获取当前事件类型的最新事件
                 Object stickyEvent = stickyEvents.get(eventType);
+                // 校验事件并发布事件
                 checkPostStickyEventToSubscription(newSubscription, stickyEvent);
             }
         }
     }
 
+    /**
+     * 检查黏性事件并发布到订阅者
+     *
+     * @param newSubscription Subscription 订阅关系
+     * @param stickyEvent     Object 黏性事件
+     */
     private void checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent) {
         if (stickyEvent != null) {
-            // If the subscriber is trying to abort the event, it will fail (event is not tracked in posting state)
+            // 如果订阅者试图中止事件，它将失败（在发布状态下不跟踪事件）
             // --> Strange corner case, which we don't take care of here.
+            // 将事件发布到订阅者
             postToSubscription(newSubscription, stickyEvent, isMainThread());
         }
     }
@@ -395,30 +404,35 @@ public class EventBus {
     }
 
     /**
-     * Posts the given event to the event bus and holds on to the event (because it is sticky). The most recent sticky
-     * event of an event's type is kept in memory for future access by subscribers using {@link Subscribe#sticky()}.
+     * 将给定事件发布到事件总线并保留该事件（因为它是黏性的）.
+     * 事件类型的最新粘性事件保存在内存中，供订阅者使用 {@link Subscribe#sticky()} 将来访问。
      */
     public void postSticky(Object event) {
+        // 加锁 监视器为黏性事件 Map
         synchronized (stickyEvents) {
+            // 将事件存入内存中 以事件的 Class 对象为 key，事件实例为 value
             stickyEvents.put(event.getClass(), event);
         }
-        // Should be posted after it is putted, in case the subscriber wants to remove immediately
+        // 放置后应发布，以防订阅者想立即删除
         post(event);
     }
 
     /**
-     * Gets the most recent sticky event for the given type.
+     * 获取给定类型的最新粘性事件
      *
      * @see #postSticky(Object)
      */
     public <T> T getStickyEvent(Class<T> eventType) {
+        // 加锁 监视器为黏性事件 Map
         synchronized (stickyEvents) {
+            // Map.get() 返回的是 Object 类型，所以使用了 Class.cast() 方法进行强转为调用者所表示的类型
             return eventType.cast(stickyEvents.get(eventType));
         }
     }
 
     /**
-     * Remove and gets the recent sticky event for the given event type.
+     * 删除并获取给定事件类型的最近粘性事件。
+     * 同 {@link #getStickyEvent(Class)} 方法差不多，只是该方法是移除事件
      *
      * @see #postSticky(Object)
      */
@@ -429,14 +443,17 @@ public class EventBus {
     }
 
     /**
-     * Removes the sticky event if it equals to the given event.
+     * 移除给定的事件
      *
-     * @return true if the events matched and the sticky event was removed.
+     * @return 如果事件匹配并且粘性事件被删除，则为 true
      */
     public boolean removeStickyEvent(Object event) {
+        // 同样的操作 对黏性事件 Map 加锁
         synchronized (stickyEvents) {
             Class<?> eventType = event.getClass();
+            // 获取事件类型在 Map 中的事件
             Object existingEvent = stickyEvents.get(eventType);
+            // 进行对比
             if (event.equals(existingEvent)) {
                 stickyEvents.remove(eventType);
                 return true;
@@ -447,7 +464,7 @@ public class EventBus {
     }
 
     /**
-     * Removes all sticky events.
+     * 删除所有粘性事件
      */
     public void removeAllStickyEvents() {
         synchronized (stickyEvents) {
