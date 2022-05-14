@@ -21,10 +21,15 @@ import java.lang.reflect.Method;
  * 订阅者方法
  */
 public class SubscriberMethod {
+    // 订阅者方法
     final Method method;
+    // 线程模式
     final ThreadMode threadMode;
+    // 接收的事件类型
     final Class<?> eventType;
+    // 订阅者方法的优先级
     final int priority;
+    // 是否是黏性事件
     final boolean sticky;
     /** Used for efficient comparison */
     String methodString;

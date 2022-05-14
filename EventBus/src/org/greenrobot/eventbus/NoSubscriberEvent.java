@@ -16,20 +16,24 @@
 package org.greenrobot.eventbus;
 
 /**
- * This Event is posted by EventBus when no subscriber is found for a posted event.
- * 
+ * 当未找到已发布事件的订阅者时，此事件由 EventBus 发布
+ * 是否发布该事件取决与 EventBus 的配置 {@link EventBus#builder()}
+ *
  * @author Markus
  */
 public final class NoSubscriberEvent {
-    /** The {@link EventBus} instance to with the original event was posted to. */
+    /**
+     * The {@link EventBus} instance to with the original event was posted to.
+     */
     public final EventBus eventBus;
 
-    /** The original event that could not be delivered to any subscriber. */
+    /**
+     * 无法传递给任何订阅者的原始事件
+     */
     public final Object originalEvent;
 
     public NoSubscriberEvent(EventBus eventBus, Object originalEvent) {
         this.eventBus = eventBus;
         this.originalEvent = originalEvent;
     }
-
 }
