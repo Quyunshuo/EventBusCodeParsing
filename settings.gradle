@@ -1,8 +1,5 @@
 rootProject.name = 'EventBusCodeParsing'
-// old
-include ':EventBus-3`2`0'
 
-// new
 include ':EventBus'
 include ':eventbus-android'
 include ':EventBusAnnotationProcessor'
