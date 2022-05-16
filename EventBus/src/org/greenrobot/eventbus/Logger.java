@@ -18,6 +18,9 @@ package org.greenrobot.eventbus;
 import org.greenrobot.eventbus.android.AndroidComponents;
 import java.util.logging.Level;
 
+/**
+ * 内部使用的日志程序
+ */
 public interface Logger {
 
     void log(Level level, String msg);

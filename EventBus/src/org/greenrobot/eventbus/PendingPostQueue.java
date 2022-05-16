@@ -20,14 +20,34 @@ package org.greenrobot.eventbus;
  * 待发布队列
  * 其实现使用的是 内存指针 https://www.jianshu.com/p/5bb6595c0b59
  * 解析：
- * ```
+ * <pre>
  * 入队一个元素：obj1
  * PendingPostQueue:
- *        head:obj1
- *               next:null
- *        tail:obj1
- *               next:null
- * ```
+ *   —— head:obj1
+ *       —— next:null
+ *   —— tail:obj1
+ *       —— next:null
+ *
+ * 入队第二个元素：obj2
+ * PendingPostQueue:
+ *   —— head:obj1
+ *       —— next:obj2
+ *                 —— next:null
+ *   —— tail:obj2
+ *       —— next:null
+ *
+ * 入队第三个元素：obj3
+ * PendingPostQueue:
+ *   —— head:obj1
+ *       —— next:obj2
+ *                 —— next:obj3
+ *                           ——next:null
+ *   —— tail:obj3
+ *       —— next:null
+ *
+ * 队尾的 next 始终为 null，而队头的 next 当队列 size<1 时，不为 null
+ * 队头的 next 指向下一个元素，而下一个元素的 next 也指向再下一个元素，以此类推，直到最后一个元素的 next 为 null
+ * </pre>
  */
 public final class PendingPostQueue {
     // 头部
@@ -37,6 +57,7 @@ public final class PendingPostQueue {
 
     /**
      * 入队
+     *
      * @param pendingPost PendingPost
      */
     public synchronized void enqueue(PendingPost pendingPost) {

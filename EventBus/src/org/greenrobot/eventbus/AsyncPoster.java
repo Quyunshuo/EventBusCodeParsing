@@ -34,7 +34,7 @@ class AsyncPoster implements Runnable, Poster {
 
     /**
      * 入队
-     * @param subscription Subscription 接收事件的订阅方法
+     * @param subscription Subscription 接收事件的订阅者方法包装类
      * @param event        Object 将发布给订阅者的事件
      */
     public void enqueue(Subscription subscription, Object event) {

@@ -36,5 +36,8 @@ public interface SubscriberInfo {
      */
     SubscriberInfo getSuperSubscriberInfo();
 
+    /**
+     * 是否检查超类
+     */
     boolean shouldCheckSuperclass();
 }

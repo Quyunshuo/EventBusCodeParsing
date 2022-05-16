@@ -19,15 +19,25 @@ public abstract class AndroidComponents {
                 : null;
     }
 
+    /**
+     * 安卓组件是否可用
+     */
     public static boolean areAvailable() {
         return implementation != null;
     }
 
+    /**
+     * 获取安卓组件的实例 实际为 {@link org.greenrobot.eventbus.android.AndroidComponentsImpl}
+     */
     public static AndroidComponents get() {
         return implementation;
     }
 
+    /**
+     * 日志处理器
+     */
     public final Logger logger;
+
     /**
      * 默认的主线程支持
      */

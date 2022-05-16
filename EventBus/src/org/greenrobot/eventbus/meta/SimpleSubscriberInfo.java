@@ -18,7 +18,8 @@ package org.greenrobot.eventbus.meta;
 import org.greenrobot.eventbus.SubscriberMethod;
 
 /**
- * Uses {@link SubscriberMethodInfo} objects to create {@link org.greenrobot.eventbus.SubscriberMethod} objects on demand.
+ * 简单订阅者信息类 用于注解处理器生成的索引类中
+ * 使用 {@link SubscriberMethodInfo} 对象按需创建 {@link org.greenrobot.eventbus.SubscriberMethod} 对象。
  */
 public class SimpleSubscriberInfo extends AbstractSubscriberInfo {
     /**

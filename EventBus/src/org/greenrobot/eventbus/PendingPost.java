@@ -28,7 +28,7 @@ public final class PendingPost {
     private final static List<PendingPost> pendingPostPool = new ArrayList<PendingPost>();
     // 对应的事件
     Object event;
-    // 订阅关系
+    // 订阅者方法包装类
     Subscription subscription;
     // 下一个元素
     PendingPost next;
@@ -37,7 +37,7 @@ public final class PendingPost {
      * 唯一构造
      *
      * @param event        Object 事件
-     * @param subscription Subscription 订阅关系
+     * @param subscription Subscription 订阅者方法包装类
      */
     private PendingPost(Object event, Subscription subscription) {
         this.event = event;
@@ -48,11 +48,11 @@ public final class PendingPost {
      * 获取一个 PendingPost
      * 可能是复用的对象，也可能是新建的对象，这取决于对象池
      *
-     * @param subscription Subscription
-     * @param event        Object
+     * @param subscription Subscription 订阅者方法包装类
+     * @param event        Object 事件
      * @return PendingPost
      */
-   public static PendingPost obtainPendingPost(Subscription subscription, Object event) {
+    public static PendingPost obtainPendingPost(Subscription subscription, Object event) {
         // 加锁，监视器为 pendingPostPool 对象池
         synchronized (pendingPostPool) {
             // 获取对象池的长度
