@@ -55,7 +55,7 @@ public class EventBus {
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<>();
     /**
      * 按照事件类型分类的订阅方法 HashMap
-     * key:Class<?> 事件类的 Class 对象， value:CopyOnWriteArrayList<Subscription> 订阅者方法信息集合
+     * key:Class<?> 事件类的 Class 对象， value:CopyOnWriteArrayList<Subscription> 订阅者方法包装类集合
      */
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
     /**
@@ -272,7 +272,7 @@ public class EventBus {
     /**
      * 检查黏性事件并发布到订阅者
      *
-     * @param newSubscription Subscription 订阅关系
+     * @param newSubscription Subscription 订阅者方法包装类
      * @param stickyEvent     Object 黏性事件
      */
     private void checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent) {
@@ -597,7 +597,7 @@ public class EventBus {
     /**
      * 将事件发布到订阅者
      *
-     * @param subscription Subscription 订阅关系
+     * @param subscription Subscription 订阅者方法包装类
      * @param event        Object 事件
      * @param isMainThread boolean 是否是主线程
      */
@@ -716,7 +716,7 @@ public class EventBus {
     /**
      * 在当前线程直接调用订阅者方法
      *
-     * @param subscription Subscription 订阅者及方法
+     * @param subscription Subscription 订阅者方法包装类
      * @param event        Object 事件
      */
     void invokeSubscriber(Subscription subscription, Object event) {
@@ -735,7 +735,7 @@ public class EventBus {
     /**
      * 处理订阅者方法异常
      *
-     * @param subscription Subscription 订阅者及方法
+     * @param subscription Subscription 订阅者方法包装类
      * @param event        Object 事件
      * @param cause        Throwable 异常
      */
@@ -781,7 +781,7 @@ public class EventBus {
         boolean isPosting;
         // 是否是主线程
         boolean isMainThread;
-        // 订阅关系
+        // 订阅者方法包装类
         Subscription subscription;
         // 正在发送的事件
         Object event;

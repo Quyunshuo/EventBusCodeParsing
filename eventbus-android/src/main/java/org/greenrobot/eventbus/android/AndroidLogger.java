@@ -20,6 +20,9 @@ import org.greenrobot.eventbus.Logger;
 
 import java.util.logging.Level;
 
+/**
+ * Android 日志程序 内部使用
+ */
 public class AndroidLogger implements Logger {
 
     private final String tag;

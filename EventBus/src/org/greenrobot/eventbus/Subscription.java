@@ -16,8 +16,7 @@
 package org.greenrobot.eventbus;
 
 /**
- * 订阅者方法包装类  可以视为一个订阅方法的信息
- * todo: 为此类统一抽象定义
+ * 订阅者方法包装类  方法+所在订阅类
  */
 public final class Subscription {
     /**
