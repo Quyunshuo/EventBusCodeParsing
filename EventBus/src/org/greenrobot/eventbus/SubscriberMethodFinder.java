@@ -336,7 +336,7 @@ class SubscriberMethodFinder {
     /**
      * 查找状态
      * 主要就是在查找订阅者方法的过程中记录一些状态信息
-     * FindState 类是 SubscriberMethodFinder 的内部类，这个方法主要做一个初始化的工作。
+     * FindState 类是 SubscriberMethodFinder 的内部类
      * <p>
      * 由于该类中字段多，为了内存做了对象缓存池处理，见{@link #FIND_STATE_POOL}
      */
