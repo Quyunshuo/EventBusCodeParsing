@@ -583,6 +583,7 @@ public class EventBus {
                     postingState.canceled = false;
                 }
                 // 如果已经中止，就跳出循环
+                // TODO: 2022/5/27 为什么不在开始处判断？ 还要发布一次后再取消？
                 if (aborted) {
                     break;
                 }
