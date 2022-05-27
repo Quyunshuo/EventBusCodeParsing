@@ -1129,16 +1129,356 @@ private static List<Class<?>> lookupAllEventTypes(Class<?> eventClass) {
 }
 ```
 
+进入方法体后首先尝试获取缓存，如果有缓存就直接返回，如果没有缓存会进行查找。在查找的逻辑中，会进入一个 `while` 循环，循环条件是局部变量 `clazz` 不为 `null`，而 `clazz` 会指向当前需要查找的事件类型 `Class` 对象，每次查找结束后会获取父类的 `Class` 对象进行赋值重复循环，直到没有父类。循环体内第一行代码就是将当前的 `Class` 对象添加进局部变量`eventTypes`，因为类的夫类型可能会是一个 `Class` 也可能是一个 `Interface`，所以在第二行就对当前 Class 的接口进行调用 `addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces)` 递归遍历，将所有的接口类型也添加进 `eventTypes`。`addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces)` 方法的源码如下：
 
-
+```java
+/**
+ * 将给定 interfaces 添加进全部事件类型中
+ * 该方法会对每一个接口进行深入查找父类，直到全部类型查找结束，通过递归的方式
+ */
+static void addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces) {
+    // 循环遍历当前的接口数组
+    for (Class<?> interfaceClass : interfaces) {
+        // 判断所有事件类型中是否已经包含此类型，不包含的情况下将其添加进所有的事件类型
+        if (!eventTypes.contains(interfaceClass)) {
+            eventTypes.add(interfaceClass);
+            // 对刚刚添加完的接口类型进一步深入查找父接口，通过递归的方式
+            addInterfaces(eventTypes, interfaceClass.getInterfaces());
+        }
+    }
+}
+```
+在处理完接口后，调用了 `getSuperclass()` 方法获取父类型的 `Class` 对象，然后继续循环到父类型的 `Class` 对象为 `null`，跳出循环将查找到的所有类型放入缓存然后结束方法。
 
 ### 4.3 按类型发布事件
 
+在上一步中查找了所有的事件类型，下一步就是按照事件类型进行事件的发布，发布使用   `postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass)` 方法，该方法会返回一个 `Boolean` 结果，表示事件是否发布成功。方法源码如下：
+
+```java
+/**
+ * 通过事件类型发布单个事件
+ *
+ * @param event        Object 事件
+ * @param postingState PostingThreadState 当前线程的发布状态
+ * @param eventClass   eventClass 事件 Class 对象
+ * @return 是否找到订阅关系
+ */
+private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
+    CopyOnWriteArrayList<Subscription> subscriptions;
+    // 加锁 监视器为当前对象
+    synchronized (this) {
+        // 获取该 Class 对象的订阅方法 List
+        subscriptions = subscriptionsByEventType.get(eventClass);
+    }
+    if (subscriptions != null && !subscriptions.isEmpty()) {
+        // 如果存在订阅方法，就进行遍历操作
+        for (Subscription subscription : subscriptions) {
+            // 将事件和订阅方法赋值给 postingState
+            postingState.event = event;
+            postingState.subscription = subscription;
+            // 是否中止
+            boolean aborted;
+            try {
+                // 将事件发布到订阅者
+                postToSubscription(subscription, event, postingState.isMainThread);
+                // 是否已经取消发布
+                aborted = postingState.canceled;
+            } finally {
+                // 重置 postingState 状态
+                postingState.event = null;
+                postingState.subscription = null;
+                postingState.canceled = false;
+            }
+            // 如果已经中止，就跳出循环
+            if (aborted) {
+                break;
+            }
+        }
+        // 方法体结束，返回找到订阅关系
+        return true;
+    }
+    // 到此步骤表示没有订阅方法，返回 false
+    return false;
+}
+```
+
+方法体内从 `subscriptionsByEventType` 获取该事件类型的订阅方法，如果不存在订阅方法就返回 `false`，如果存在订阅方法就进一步处理。下一步就是对拿到的所有该事件类型的订阅者方法进行遍历操作，将准备发送的事件及事件的订阅者方法赋值给当前线程的 `PostingThreadState` 对象用于记录，随后调用 `postToSubscription(Subscription subscription, Object event, boolean isMainThread)` 方法进一步处理线程模式进行发布，这部分会有专门的章节来解析源码。在下一行从 `PostingThreadState` 获取事件是否已经进行取消的状态，如果已经取消就不再进行后续的发布，此处其实我有个疑问🤔️，为什么一开始不判断是否取消而是发布一个后再判断？
+
 ### 4.4 处理线程模式（事件发布器）
+
+在上面的步骤中，最终会调用 `postToSubscription(Subscription subscription, Object event, boolean isMainThread)` 来根据订阅方法的线程模式进行分类发布，目前 EventBus 有五种线程模式，分别是：
+
+- **ThreadMode.POSTING**
+- **ThreadMode.MAIN**
+- **ThreadMode.MAIN_ORDERED**
+- **ThreadMode.BACKGROUND**
+- **ThreadMode.ASYNC**
+
+方法源码如下：
+```java
+/**
+ * 将事件发布到订阅者
+ *
+ * @param subscription Subscription 订阅者方法包装类
+ * @param event        Object 事件
+ * @param isMainThread boolean 是否是主线程
+ */
+private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
+    // 按照订阅者方法指定的线程模式进行针对性处理
+    switch (subscription.subscriberMethod.threadMode) {
+        // 发布线程
+        case POSTING:
+            invokeSubscriber(subscription, event);
+            break;
+        // Android 上为主线程，非 Android 与 POSTING 一致
+        case MAIN:
+            // 判断是否是主线程，如果是主线程，直接调用 void invokeSubscriber(Subscription subscription, Object event) 方法进行在当前线程中发布事件
+            if (isMainThread) {
+                invokeSubscriber(subscription, event);
+            } else {
+                // 不是主线程，将该事件入队到主线程事件发布器处理
+                mainThreadPoster.enqueue(subscription, event);
+            }
+            break;
+        // Android 上为主线程，并且按顺序发布，非 Android 与 POSTING 一致
+        case MAIN_ORDERED:
+            if (mainThreadPoster != null) {
+                // 不考虑当前的线程环境，直接入队，保证顺序
+                mainThreadPoster.enqueue(subscription, event);
+            } else {
+                // 不是主线程，将该事件入队到主线程事件发布器处理
+                // temporary: technically not correct as poster not decoupled from subscriber
+                invokeSubscriber(subscription, event);
+            }
+            break;
+        // Android 上为后台线程调用，非 Android 与 POSTING 一致
+        case BACKGROUND:
+            // 主线程发布的事件才会被入队到 backgroundPoster，非主线程发布的事件会被直接调用订阅者方法发布事件
+            if (isMainThread) {
+                backgroundPoster.enqueue(subscription, event);
+            } else {
+                invokeSubscriber(subscription, event);
+            }
+            break;
+        // 使用单独的线程处理，基于线程池
+        case ASYNC:
+            // 入队 asyncPoster，该线程模式总是在非发布线程处理订阅者方法的调用
+            asyncPoster.enqueue(subscription, event);
+            break;
+        default:
+            throw new IllegalStateException("Unknown thread mode: " + subscription.subscriberMethod.threadMode);
+    }
+}
+```
+
+**POSTING**
+
+这是默认设置，事件交付是同步完成的，一旦发布完成，所有订阅者都将被调用。此线程模式意味着最小的开销，因为它完全避免了线程切换。因此，对于已知无需主线程的非常短的时间完成的简单任务，这是推荐的模式。使用此模式的事件处理程序应该快速返回，以避免阻止发布线程，该线程可能是主线程。
+
+由于该模式不需要任何的线程调度，所以是直接进行方法调用的，没有任何的 **事件发布器** 参与，具体的订阅方法调用是在 `invokeSubscriber(Subscription subscription, Object event)` 方法完成的，源码如下：
+
+```java
+/**
+ * 在当前线程直接调用订阅者方法
+ *
+ * @param subscription Subscription 订阅者方法包装类
+ * @param event        Object 事件
+ */
+void invokeSubscriber(Subscription subscription, Object event) {
+    try {
+        // 调用订阅者的订阅方法，将事件作为参数传递（反射调用）
+        subscription.subscriberMethod.method.invoke(subscription.subscriber, event);
+    } catch (InvocationTargetException e) {
+        // 如果产生调用目标异常，就处理该异常
+        handleSubscriberException(subscription, event, e.getCause());
+    } catch (IllegalAccessException e) {
+        // 如果是非法访问 直接抛出异常
+        throw new IllegalStateException("Unexpected exception", e);
+    }
+}
+```
+
+订阅方法的调用是通过反射完成的，也就是说即使使用了索引，也逃不过反射。
+
+**MAIN**
+
+在 **Android** 上, 订阅者将在 **Android** 的主线程（**UI** 线程）中调用。如果发布线程是主线程，订阅者方法将被直接调用，阻塞发布线程。否则，事件将排队等待传递（非阻塞）。使用这种模式的订阅者必须快速返回以避免阻塞主线程。如果不在 Android 上，其行为与 **POSTING** 相同。
+
+**Android** 平台如果发布事件的线程不是主线程，就会有 **事件发布器** 参与完成线程的调度和订阅者方法的调用，关于 **事件发布器** 会有专门的章节来解析。
+
+**MAIN_ORDERED**
+
+在 **Android** 上，订阅者将在 **Android** 的主线程（**UI** 线程）中被调用。与 **MAIN** 不同，该事件将始终排队等待传递。这确保了 `post` 调用是非阻塞的。这给了事件处理一个更严格、更一致的顺序（因此名为 **MAIN_ORDERED**）。例如，如果在具有主线程模式的事件处理程序中发布另一个事件，则第二个事件处理程序将在第一个事件处理程序之前完成（因为它是同步调用的-将其与方法调用进行比较）。使用**MAIN_ORDERED**，第一个事件处理程序将完成，然后第二个事件处理程序将在稍后时间点调用（一旦主线程具有容量）。使用此模式的事件处理程序必须快速返回，以避免阻止主线程。如果不在 **Android** 上，其行为与 **POSTING** 相同。该模式也需要 **事件发布器** 来完成主线程的发布。
+
+**BACKGROUND**
+
+在 **Android** 上，订阅者将在后台线程中调用。如果发布线程不是主线程，订阅者方法将直接在发布线程中调用。如果发布线程是主线程，**EventBus** 使用单个后台线程，它将按顺序传递其所有事件。使用此模式的订阅者应尽量快速返回以避免阻塞后台线程。如果不在 **Android** 上，则始终使用后台线程。该模式也需要 **事件发布器** 来完成事件发布。
+
+**ASYNC**
+
+这总是独立于发布线程和主线程。发布事件永远不会等待使用此模式的事件处理程序方法。如果事件处理程序方法的执行可能需要一些时间，例如网络访问，则应使用此模式。避免同时触发大量长期运行的异步处理程序方法，以限制并发线程的数量。**EventBus** 使用线程池从已完成的异步事件处理程序通知中高效地重用线程。该模式也需要 **事件发布器** 来完成事件发布。
 
 ## 5.发布黏性事件
 
+黏性事件的处理有两部分：
+
+- 注册过程处理黏性事件
+- 主动发布黏性事件
+
+### 5.1 注册过程处理黏性事件
+
+在注册的源码解析中我们解析到处理黏性事件部分代码的时候跳过了，在此处我们书接上回。这部分逻辑在 `subscribe(Object subscriber, SubscriberMethod subscriberMethod)` 方法后部分，源码如下：
+
+```java
+// 对黏性事件进行处理
+if (subscriberMethod.sticky) {
+    // 是否事件继承
+    if (eventInheritance) {
+        // 必须考虑所有 eventType 子类的现有粘性事件。
+        // Note: 迭代所有事件可能会因大量粘性事件而效率低下，因此应更改数据结构以允许更有效的查找
+        // (e.g. 存储超类的子类的附加映射: Class -> List<Class>).
+        Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
+        for (Map.Entry<Class<?>, Object> entry : entries) {
+            Class<?> candidateEventType = entry.getKey();
+            // 判断 eventType 是否是 candidateEventType 的父类或父接口
+            if (eventType.isAssignableFrom(candidateEventType)) {
+                Object stickyEvent = entry.getValue();
+                // 如果是父子关系  进行事件检查和发布
+                checkPostStickyEventToSubscription(newSubscription, stickyEvent);
+            }
+        }
+    } else {
+        // 从黏性事件 Map 中获取当前事件类型的最新事件
+        Object stickyEvent = stickyEvents.get(eventType);
+        // 校验事件并发布事件
+        checkPostStickyEventToSubscription(newSubscription, stickyEvent);
+    }
+}
+```
+
+首先也是和普通事件一样，进行事件是否处理继承关系的判断，如果不处理，直接从 `stickyEvents` 获取最新的该事件类型的事件进行校验并发布，因为不一定有已经发布的黏性事件，所以通过 `checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent)` 方法对事件进行校验和发布，方法源码如下：
+
+```java
+/**
+ * 检查黏性事件并发布到订阅者
+ *
+ * @param newSubscription Subscription 订阅者方法包装类
+ * @param stickyEvent     Object 黏性事件
+ */
+private void checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent) {
+    if (stickyEvent != null) {
+        // 如果订阅者试图中止事件，它将失败（在发布状态下不跟踪事件）
+        // --> Strange corner case, which we don't take care of here.
+        // 将事件发布到订阅者
+        postToSubscription(newSubscription, stickyEvent, isMainThread());
+    }
+}
+```
+
+如果事件不为空，就调用 `postToSubscription(Subscription subscription, Object event, boolean isMainThread)` 方法处理线程模式进一步发布，这部分我们在上面已经解析过了。
+
+如果需要进行处理事件的继承关系，对所有存在的黏性事件已经遍历，对其判断是否具有父子关系，如果是其父类或着实现的接口，就调用 `checkPostStickyEventToSubscription(Subscription newSubscription, Object stickyEvent)` 方法对事件进行校验和发布。
+
+到此在注册过程中的黏性事件处理结束，还是比较简单的。
+
+### 5.2 主动发布黏性事件
+
+主动发布黏性事件是调用的 `postSticky(Object event)` 方法来完成的。方法的源码如下：
+
+```java
+/**
+ * 将给定事件发布到事件总线并保留该事件（因为它是黏性的）.
+ * 事件类型的最新粘性事件保存在内存中，供订阅者使用 {@link Subscribe#sticky()} 将来访问。
+ */
+public void postSticky(Object event) {
+    // 加锁 监视器为黏性事件 Map
+    synchronized (stickyEvents) {
+        // 将事件存入内存中 以事件的 Class 对象为 key，事件实例为 value
+        stickyEvents.put(event.getClass(), event);
+    }
+    // 放置后应发布，以防订阅者想立即删除
+    post(event);
+}
+```
+
+首先将黏性事件存入 `stickyEvents` 中，随后调用 `post(Object event)` 方法进行事件发布，方法源码如下：
+
+```java
+/**
+ * 将给定事件发布到事件总线
+ */
+public void post(Object event) {
+    // 从当前线程中取得线程专属变量 PostingThreadState 实例
+    PostingThreadState postingState = currentPostingThreadState.get();
+    // 拿到事件队列
+    List<Object> eventQueue = postingState.eventQueue;
+    // 将事件入队
+    eventQueue.add(event);
+
+    // 判断当前线程是否在发布事件中
+    if (!postingState.isPosting) {
+        // 设置当前线程是否是主线程
+        postingState.isMainThread = isMainThread();
+        // 将当前线程标记为正在发布
+        postingState.isPosting = true;
+        // 如果 canceled 为 true，则是内部错误，中止状态未重置
+        if (postingState.canceled) {
+            throw new EventBusException("Internal error. Abort state was not reset");
+        }
+        try {
+            // 队列不为空时，循环发布单个事件
+            while (!eventQueue.isEmpty()) {
+                // 从事件队列中取出一个事件进行发布
+                postSingleEvent(eventQueue.remove(0), postingState);
+            }
+        } finally {
+            // 发布完成后 重置状态
+            postingState.isPosting = false;
+            postingState.isMainThread = false;
+        }
+    }
+}
+```
+
+首先取当前线程的 `PostingThreadState` 实例并拿到事件队列，将该事件入队，判断当前线程是否在发布事件中，当然正常的情况下不会，随后循环从事件队列中取出事件进行调用 `postSingleEvent(Object event, PostingThreadState postingState)` 方法进行发布，该方法我们已经进行过解析了，循环结束对 `PostingThreadState` 恢复状态。
+
+由于核心逻辑在普通事件发布的章节已经解析完了，在黏性事件的发布过程中也是大同小异，所以该部分没有特别需要解析的代码。最后就到了 **事件发布器** 章节。
+
 ## 6.事件发布器
+
+**EventBus** 有线程调度的操作，而 **事件发布器** 就是做线程调度的，一共有四种线程模式有 **事件发布器** 的参与：
+
+- **MAIN**、**MAIN_ORDERED**：**HandlerPoster**
+- **BACKGROUND**：**BackgroundPoster**
+- **ASYNC**：**AsyncPoster**
+
+全部实现 `Poster` 接口，该接口源码如下：
+
+```java
+/**
+ * 发布事件程序抽象 可以理解为事件发布器抽象
+ * @author William Ferguson
+ */
+public interface Poster {
+
+    /**
+     * 将要为特定订阅发布的事件排入队列
+     * @param subscription Subscription 接收事件的订阅方法包装类
+     * @param event        Object 将发布给订阅者的事件
+     */
+    void enqueue(Subscription subscription, Object event);
+}
+```
+
+而事件发布器还和另一个抽象角色一起使用，就是待发布事件队列 `PendingPostQueue`，这是一个自定义的队列，下面会专门对该队列进行解析。
+
+### 6.1 待发布事件队列（PendingPostQueue）
+
+### 6.2 主线程事件发布器（HandlerPoster）
+
+### 6.3 后台线程事件发布器（BackgroundPoster）
+
+### 6.4 异步事件发布器（AsyncPoster）
 
 # 四、结尾
 
