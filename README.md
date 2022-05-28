@@ -31,10 +31,11 @@
 
 1. **项目结构**
 2. **实例构建**
-3. **注册订阅/取消注册订阅**
+3. **注册订阅**
 4. **发布普通事件**
 5. **发布黏性事件**
 6. **事件发布器**
+7. **取消注册订阅**
 
 ## 1.项目结构
 
@@ -218,16 +219,7 @@ public class EventBusBuilder {
      * 所以该方法应该在最后调用
      * @throws EventBusException 如果已经有一个默认的 EventBus 实例
      */
-    public EventBus installDefaultEventBus() {
-        synchronized (EventBus.class) {
-            if (EventBus.defaultInstance != null) {
-                throw new EventBusException("Default instance already exists." +
-                        " It may be only set once before it's used the first time to ensure consistent behavior.");
-            }
-            EventBus.defaultInstance = build();
-            return EventBus.defaultInstance;
-        }
-    }
+    public EventBus installDefaultEventBus() {...}
 
     /**
      * 根据当前配置构建 EventBus
@@ -274,7 +266,7 @@ public class EventBusBuilder {
 
 &emsp;&emsp;如果我们需要对 **EventBus** 进行一些自定义的行为配置，我们就使用 **Builder** 模式构建实例，如果没有自定义行为配置的需要并且也不使用索引的情况下，我们只需要调用 `EventBus.getDefault()` 获取默认实例就足够了。
 
-## 3.注册订阅/取消注册订阅
+## 3.注册订阅
 
 对于注册的流程是较为复杂的，为了能够很好的去阅读源码解读部分，先看下图熟悉注册的整个流程：
 
@@ -345,9 +337,6 @@ public void register(Object subscriber) {
 该类是单独将订阅方法查找这一行为进行抽象得到的，主要用途就是查找订阅方法，其源码大概如下：
 
 ``` java
-/**
- * 订阅者方法查找器
- */
 class SubscriberMethodFinder {
     private static final int BRIDGE = 0x40;
     private static final int SYNTHETIC = 0x1000;
@@ -491,9 +480,7 @@ class SubscriberMethodFinder {
 `FindState` 类中有一些集合用于存储查找过程中的数据，在 `SubscriberMethodFinder` 中有一个属性：
 
 ```java
-// FIND_STATE_POOL 长度
 private static final int POOL_SIZE = 4;
-// FindState 池，默认4个位置 POOL_SIZE = 4
 private static final FindState[] FIND_STATE_POOL = new FindState[POOL_SIZE];
 ```
 
@@ -944,29 +931,7 @@ private void subscribe(Object subscriber, SubscriberMethod subscriberMethod) {
     subscribedEvents.add(eventType);
 
     // 对黏性事件进行处理
-    if (subscriberMethod.sticky) {
-        // 是否事件继承
-        if (eventInheritance) {
-            // 必须考虑所有 eventType 子类的现有粘性事件。
-            // Note: 迭代所有事件可能会因大量粘性事件而效率低下，因此应更改数据结构以允许更有效的查找
-            // (e.g. 存储超类的子类的附加映射: Class -> List<Class>).
-            Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
-            for (Map.Entry<Class<?>, Object> entry : entries) {
-                Class<?> candidateEventType = entry.getKey();
-                // 判断 eventType 是否是 candidateEventType 的父类或父接口
-                if (eventType.isAssignableFrom(candidateEventType)) {
-                    Object stickyEvent = entry.getValue();
-                    // 如果是父子关系  进行事件检查和发布
-                    checkPostStickyEventToSubscription(newSubscription, stickyEvent);
-                }
-            }
-        } else {
-            // 从黏性事件 Map 中获取当前事件类型的最新事件
-            Object stickyEvent = stickyEvents.get(eventType);
-            // 校验事件并发布事件
-            checkPostStickyEventToSubscription(newSubscription, stickyEvent);
-        }
-    }
+    ...
 }
 ```
 
@@ -976,7 +941,7 @@ private void subscribe(Object subscriber, SubscriberMethod subscriberMethod) {
 
 至此整个注册过程已经结束了。
 
-## 4.发布普通事件
+## 4.发布普通事件（post）
 
 普通事件的发布过程如下：
 
@@ -1318,7 +1283,7 @@ void invokeSubscriber(Subscription subscription, Object event) {
 
 这总是独立于发布线程和主线程。发布事件永远不会等待使用此模式的事件处理程序方法。如果事件处理程序方法的执行可能需要一些时间，例如网络访问，则应使用此模式。避免同时触发大量长期运行的异步处理程序方法，以限制并发线程的数量。**EventBus** 使用线程池从已完成的异步事件处理程序通知中高效地重用线程。该模式也需要 **事件发布器** 来完成事件发布。
 
-## 5.发布黏性事件
+## 5.发布黏性事件（postSticky）
 
 黏性事件的处理有两部分：
 
@@ -1444,7 +1409,7 @@ public void post(Object event) {
 
 由于核心逻辑在普通事件发布的章节已经解析完了，在黏性事件的发布过程中也是大同小异，所以该部分没有特别需要解析的代码。最后就到了 **事件发布器** 章节。
 
-## 6.事件发布器
+## 6.事件发布器（Poster）
 
 **EventBus** 有线程调度的操作，而 **事件发布器** 就是做线程调度的，一共有四种线程模式有 **事件发布器** 的参与：
 
@@ -1474,11 +1439,516 @@ public interface Poster {
 
 ### 6.1 待发布事件队列（PendingPostQueue）
 
+我认为这个数据结构需要单独拿出来解析，学习学习这种队列实现的思路。该队列是 **EventBus** 自己实现，使用内存引用的方式组织元素。该队列的源码如下：
+
+```java
+/**
+ * 待发布队列
+ * 其实现使用的是 内存指针 https://www.jianshu.com/p/5bb6595c0b59
+ */
+public final class PendingPostQueue {
+    // 头部
+    private PendingPost head;
+    // 尾部
+    private PendingPost tail;
+
+    /**
+     * 入队
+     *
+     * @param pendingPost PendingPost
+     */
+    public synchronized void enqueue(PendingPost pendingPost) {
+        if (pendingPost == null) {
+            throw new NullPointerException("null cannot be enqueued");
+        }
+        // 尾部不为空，证明队列中已存在其他元素
+        if (tail != null) {
+            tail.next = pendingPost;
+            tail = pendingPost;
+        } else if (head == null) {
+            head = tail = pendingPost;
+        } else {
+            throw new IllegalStateException("Head present, but no tail");
+        }
+        notifyAll();
+    }
+
+    public synchronized PendingPost poll() {
+        PendingPost pendingPost = head;
+        if (head != null) {
+            head = head.next;
+            if (head == null) {
+                tail = null;
+            }
+        }
+        return pendingPost;
+    }
+
+    public synchronized PendingPost poll(int maxMillisToWait) throws InterruptedException {
+        if (head == null) {
+            wait(maxMillisToWait);
+        }
+        return poll();
+    }
+
+}
+```
+
+`PendingPost` 是该队列的元素，这个类的源码一会再讲，先把队列的内容解析完。队列中有两个私有变量 `head`、`tail` 分别代表着队列的头部和尾部，并且元素抽象有一个属性 `next` 用于连接下一个元素，由于该队列的实现是通过内存引用的方式完成数据的组织，所以内部除了这两个私有变量就没有其他的结构了。下面展示队列中元素从无到有时的变化。
+
+- **入队一个元素**
+
+    ```java
+    PendingPostQueue:
+        —— head:obj1
+            —— next:null
+        —— tail:obj1
+            —— next:null
+    ```
+    头部和尾部都是入队的唯一一个元素，且元素的 `next` 引用都是 `null` 
+
+- **入队两个元素**
+
+    ```java
+    PendingPostQueue:
+        —— head:obj1
+            —— next:obj2
+                    —— next:null
+        —— tail:obj2
+            —— next:null
+    ```
+    当队列中有两个元素时，头部是入队最早的那个元素，尾部是最新入队的元素，且头部元素的 `next` 已经不是 `null` 了，而是在它后面入队的元素，从这里就能够看出来这个队列组织元素的方式了。
+
+- **入队三个元素**
+
+    ```java
+    PendingPostQueue:
+        —— head:obj1
+            —— next:obj2
+                    —— next:obj3
+                            ——next:null
+        —— tail:obj3
+            —— next:null
+    ```
+    当队列中元素个数大于 1 时，就是旧元素引用新元素以此类推，头部是入队最早的元素，尾部是最新入队的元素，头部元素会引用在它之后的元素并且以此类推。这样就将所有的元素通过内存引用的方式组织起来了。
+    
+队列的入队通过 `enqueue(PendingPost pendingPost)`，入队和出队都是同步方法，因此该队列是线程安全的。
+
+**enqueue**
+
+入队方法首先对入队元素进行判空，毕竟元素为空的情况下就没办法进行引用其他元素了，这个很好理解。然后对尾部元素判空，如果尾部元素不为空证明队列中已经存在元素，于是将尾部元素的 `next` 引用该入队元素，然后将尾部元素设置为该入队元素。如果尾部为空就再对头部元素进行判空，如果头部元素也为空，证明队列中无元素存在，将头部尾部都设置为该入队元素。剩下的情况就属于异常情况了，会抛出一个 `IllegalStateException("Head present, but no tail")` 异常。最后调用 `notifyAll()` 释放锁并通知等待线程。
+
+**poll()**
+
+出队方法有两个 `poll()` 和 `poll(int maxMillisToWait)`，`poll()` 方法就是正常的取元素返回的操作，而 `poll(int maxMillisToWait)` 方法在头部为空的情况下会等待一段时间再调用 `poll()` 进行获取。
+
+**PendingPost**
+
+`PendingPost` 是对队列元素的抽象，其源码如下：
+
+```java
+/**
+ * {@link PendingPostQueue} 的元素抽象
+ * 该类主要是将 事件、订阅关系、包装为一个类，并且做了对象的缓存池进行复用
+ */
+public final class PendingPost {
+    // 依旧是一个对象复用池
+    private final static List<PendingPost> pendingPostPool = new ArrayList<PendingPost>();
+    // 对应的事件
+    Object event;
+    // 订阅者方法包装类
+    Subscription subscription;
+    // 下一个元素
+    PendingPost next;
+
+    /**
+     * 唯一构造
+     *
+     * @param event        Object 事件
+     * @param subscription Subscription 订阅者方法包装类
+     */
+    private PendingPost(Object event, Subscription subscription) {
+        this.event = event;
+        this.subscription = subscription;
+    }
+
+    /**
+     * 获取一个 PendingPost
+     * 可能是复用的对象，也可能是新建的对象，这取决于对象池
+     *
+     * @param subscription Subscription 订阅者方法包装类
+     * @param event        Object 事件
+     * @return PendingPost
+     */
+    public static PendingPost obtainPendingPost(Subscription subscription, Object event) {
+        // 加锁，监视器为 pendingPostPool 对象池
+        synchronized (pendingPostPool) {
+            // 获取对象池的长度
+            int size = pendingPostPool.size();
+            // 如果对象池长度大于0，证明有可以被复用的缓存对象
+            if (size > 0) {
+                // 取出一个对象并对其赋值
+                PendingPost pendingPost = pendingPostPool.remove(size - 1);
+                pendingPost.event = event;
+                pendingPost.subscription = subscription;
+                pendingPost.next = null;
+                // 返回此复用的对象
+                return pendingPost;
+            }
+        }
+        // 到此步骤表示没有可以被复用的对象，于是就进行创建新的实例
+        return new PendingPost(event, subscription);
+    }
+
+    /**
+     * 释放 PendingPost 并加入到对象池中准备下一个事件被使用
+     *
+     * @param pendingPost PendingPost
+     */
+    static void releasePendingPost(PendingPost pendingPost) {
+        // 重置状态
+        pendingPost.event = null;
+        pendingPost.subscription = null;
+        pendingPost.next = null;
+        // 加锁 监视器为 pendingPostPool 对象池
+        synchronized (pendingPostPool) {
+            // 不要让池无限增长，当长度小于 10000 时才进行复用，否则直接丢弃
+            if (pendingPostPool.size() < 10000) {
+                pendingPostPool.add(pendingPost);
+            }
+        }
+    }
+}
+```
+其中有一个静态的对象池 `pendingPostPool` 用于缓存元素对象避免频繁的创建，`event` 变量是对事件的引用，`subscription` 是对订阅方法等的引用，当然还有上面提到的对下个元素的引用。该类还有两个静态方法，`obtainPendingPost(Subscription subscription, Object event)` 方法用于获取一个元素对象，可能是创建的新对象，可能是复用的之前创建的对象。`releasePendingPost(PendingPost pendingPost)` 方法则是为了复用而对元素数据进行释放。两个方法的逻辑比较简单，就不再解析。`pendingPostPool` 的最大长度为 10000，如果超出此长度准备复用的元素将会被丢弃。
+
 ### 6.2 主线程事件发布器（HandlerPoster）
+
+`HandlerPoster` 用于对 `MAIN` 和 `MAIN_ORDERED` 模式进行线程处理。实现了 `Poster` 接口，这就是一个普通的 `Handler`，只是它的 `Looper` 使用的是主线程的 **「Main Looper」**，可以将消息分发到主线程中。该发布器的源码如下：
+
+```java
+public class HandlerPoster extends Handler implements Poster {
+    // 事件队列
+    private final PendingPostQueue queue;
+    // 处理消息最大间隔时间 默认10ms，每次循环发布消息的时间超过该值时，就会让出主线程的使用权，等待下次调度再继续发布事件
+    private final int maxMillisInsideHandleMessage;
+    private final EventBus eventBus;
+    // 此 Handle 是否活跃
+    private boolean handlerActive;
+
+    /**
+     * 唯一构造
+     *
+     * @param eventBus                     EventBus
+     * @param looper                       Looper 主线程的 Looper
+     * @param maxMillisInsideHandleMessage int 超时时间
+     */
+    public HandlerPoster(EventBus eventBus, Looper looper, int maxMillisInsideHandleMessage) {
+        super(looper);
+        this.eventBus = eventBus;
+        this.maxMillisInsideHandleMessage = maxMillisInsideHandleMessage;
+        queue = new PendingPostQueue();
+    }
+
+    /**
+     * 入队
+     *
+     * @param subscription Subscription 接收事件的订阅方法
+     * @param event        Object 将发布给订阅者的事件
+     */
+    public void enqueue(Subscription subscription, Object event) {
+        // 获取一个 PendingPost，实际上将 subscription、event 包装成为一个 PendingPost
+        PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
+        // 加锁 监视器为当前对象
+        synchronized (this) {
+            // 将获取到的 PendingPost 包装类入队
+            queue.enqueue(pendingPost);
+            // 判断此发布器是否活跃，如果活跃就不执行，等待 Looper 调度上一个消息，重新进入发布处理
+            if (!handlerActive) {
+                // 将发布器设置为活跃状态
+                handlerActive = true;
+                // sendMessage
+                // 划重点!!!
+                // 此处没有使用 new Message()，而是使用了 obtainMessage()，该方法将从全局的消息对象池中复用旧的对象，这比直接创建要更高效
+                if (!sendMessage(obtainMessage())) {
+                    throw new EventBusException("Could not send handler message");
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理消息
+     * 该 Handle 的工作方式为：
+     *
+     */
+    @Override
+    public void handleMessage(Message msg) {
+        boolean rescheduled = false;
+        try {
+            // 获取一个开始时间
+            long started = SystemClock.uptimeMillis();
+            // 死循环
+            while (true) {
+                // 取出队列中最前面的元素
+                PendingPost pendingPost = queue.poll();
+                // 接下来会进行两次校验操作
+                // 判空 有可能队列中已经没有元素
+                if (pendingPost == null) {
+                    // 再次检查，这次是同步的
+                    synchronized (this) {
+                        // 继续取队头的元素
+                        pendingPost = queue.poll();
+                        if (pendingPost == null) {
+                            // 还是为 null，将处理状态设置为不活跃，跳出循环
+                            handlerActive = false;
+                            return;
+                        }
+                    }
+                }
+                // 调用订阅者方法
+                eventBus.invokeSubscriber(pendingPost);
+                // 获得方法耗时
+                long timeInMethod = SystemClock.uptimeMillis() - started;
+                // 判断本次调用的方法耗时是否超过预设值
+                if (timeInMethod >= maxMillisInsideHandleMessage) {
+                    // 发送进行下一次处理的消息，为了不阻塞主线程，暂时交出主线程使用权，并且发布消息到Looper，等待下一次调度再次进行消息的发布操作
+                    if (!sendMessage(obtainMessage())) {
+                        throw new EventBusException("Could not send handler message");
+                    }
+                    // 设置为活跃状态
+                    rescheduled = true;
+                    return;
+                }
+            }
+        } finally {
+            // 更新 Handle 状态
+            handlerActive = rescheduled;
+        }
+    }
+}
+```
+
+发布器内有两个方法 `enqueue(Subscription subscription, Object event)` 和 `handleMessage(Message msg)` 后者是重写的 **Handler** 的方法。
+
+**enqueue**
+
+首先从 `PendingPost.obtainPendingPost()` 方法中获取一个队列元素对象，将此元素入队，判断 `handlerActive` 当前发布器是否活跃，不活跃的条件下才会执行后续操作。在 `if` 里面首先更改 `handlerActive` 为活跃状态并且发送一个消息。
+
+**handleMessage**
+
+在接收到消息后进行调用该方法，该方法内部是一个死循环（其实是有条件退出的），但是为了不长时间占用主线程设置了超时机制，超时时间默认是 **10ms**，可通过构造器进行更改。在进入死循环之前获取了当前的时间作为超时的开始时间，接下来从待发布时间队列中获取元素并进行两次的判空操作，在两次判空操作都为空的情况下，将 `handlerActive` 设置为不活跃并跳出循环结束方法。如果取到了待发布的事件元素，就使用 `EventBus.invokeSubscriber(PendingPost pendingPost)` 方法处理订阅方法的调用，源码如下：
+
+```java
+/**
+ * 调用订阅者方法 该方法主要做了一些取值、释放、判断的操作，具体执行步骤在重载方法 {@link #invokeSubscriber(Subscription, Object)}中
+ * 如果订阅仍处于活动状态，则调用订阅者；跳过订阅可防止 {@link #unregister(Object)} 和事件传递之间的竞争条件，否则，事件可能会在订阅者注销后传递。
+ * 这对于绑定到 Activity 或 Fragment 的生命周期的主线程交付和注册尤其重要。
+ */
+void invokeSubscriber(PendingPost pendingPost) {
+    Object event = pendingPost.event;
+    Subscription subscription = pendingPost.subscription;
+    // 释放 pendingPost，准备下次复用
+    PendingPost.releasePendingPost(pendingPost);
+    // 判断订阅关系是否活跃
+    if (subscription.active) {
+        // 调用订阅方法进行发布事件
+        invokeSubscriber(subscription, event);
+    }
+}
+```
+
+该方法也没有什么复杂的操作，就是对 `PendingPost` 做了取值、释放、判断订阅关系是否还活跃（主要是判断有没有取消注册）以及调用 `invokeSubscriber(Subscription subscription, Object event)` 方法去调用订阅者方法。
+
+在执行完一次订阅者方法调用以后又取了当前时间计算了与开始时间的时间差，如果时间不大于等于超时时间就继续执行循环操作，如果大于等于超时时间，就会再次发送一个 `Message`，这么做的目的就是交出主线程的使用权，并且发布消息到 `Looper`，等待下一次调度再次进行消息的发布操作。这就是该发布器的核心所在，利用一个超时机制避免了长时间占用主线程资源导致卡顿，每次超时后交出主线程的使用权并且发送一个 `Message` 到 `Looper` 再次进行排队等待调度继续执行循环操作。
 
 ### 6.3 后台线程事件发布器（BackgroundPoster）
 
+该发布器用于处理 `BACKGROUND` 线程模式，基于线程池实现，其源码如下：
+
+```java
+final class BackgroundPoster implements Runnable, Poster {
+    // 待发布事件队列
+    private final PendingPostQueue queue;
+    private final EventBus eventBus;
+    // 执行器运行状态 volatile 可见性保障
+    private volatile boolean executorRunning;
+
+    BackgroundPoster(EventBus eventBus) {
+        this.eventBus = eventBus;
+        queue = new PendingPostQueue();
+    }
+
+    public void enqueue(Subscription subscription, Object event) {
+        // 获得一个 PendingPost
+        PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
+        // 加锁 监视器为当前对象
+        synchronized (this) {
+            // 入队
+            queue.enqueue(pendingPost);
+            // 判断执行器是否在执行
+            if (!executorRunning) {
+                // 设置状态为正在执行
+                executorRunning = true;
+                // 向线程池提交任务
+                eventBus.getExecutorService().execute(this);
+            }
+        }
+    }
+
+    @Override
+    public void run() {
+        try {
+            try {
+                // 循环处理队列中的所有待发布事件
+                while (true) {
+                    // 取出队头的元素
+                    PendingPost pendingPost = queue.poll(1000);
+                    // 二次校验
+                    if (pendingPost == null) {
+                        // 第二级校验是同步的
+                        synchronized (this) {
+                            pendingPost = queue.poll();
+                            if (pendingPost == null) {
+                                // 最终没有元素，将执行器置为空闲
+                                executorRunning = false;
+                                return;
+                            }
+                        }
+                    }
+                    // 调用订阅者方法
+                    eventBus.invokeSubscriber(pendingPost);
+                }
+            } catch (InterruptedException e) {
+                eventBus.getLogger().log(Level.WARNING, Thread.currentThread().getName() + " was interrupted", e);
+            }
+        } finally {
+            // 执行完后将运行状态置为空闲
+            executorRunning = false;
+        }
+    }
+}
+```
+
+该发布器实现了 `Poster`、`Runnable` 两个接口，线程池在 `EventBus.executorService` 私有变量中定义，并且通过 `getExecutorService()` 返回此线程池实例，我们可以通过 `EventBusBuilder.executorService(ExecutorService executorService)` 方法进行自定义线程池，如果没有自定义设置就会使用默认的线程池，默认的线程池在 `EventBusBuilder` 中创建，代码如下：
+
+```java
+private final static ExecutorService DEFAULT_EXECUTOR_SERVICE = Executors.newCachedThreadPool();
+```
+
+可以看到，这里的默认线程池是 `CachedThreadPool` 缓存线程池实现，针对于线程池部分的知识可以看我这篇文章 [Android 开发必知必会：Java 线程池](https://juejin.cn/post/7015941952902266888)。
+
+**enqueue**
+
+该方法的开始基本一致，都是使用 `PendingPost.obtainPendingPost(Subscription subscription, Object event)` 方法来获取一个待发布事件元素，随后进行入队，判断当前发布器是否在活跃状态，这部分逻辑和上面介绍的 **HandlerPoster** 也是一致的，最后一步就是向线程池提交任务，而任务具体的逻辑在重写的 `run()` 方法中。
+
+**run**
+
+该方法是处理事件的核心部分，方法体的逻辑和 `HandlerPoster.handleMessage()` 差不多，循环、队列取元素、二次判空、调用订阅者方法，这里就不再多解析一遍了。
+
 ### 6.4 异步事件发布器（AsyncPoster）
+
+该发布器用于处理 `ASYNC` 线程模式的事件，也是基于线程池实现，内容比前两个发布器要简单，源码如下：
+
+```java
+class AsyncPoster implements Runnable, Poster {
+
+    // 待发布事件队列
+    private final PendingPostQueue queue;
+    private final EventBus eventBus;
+
+    AsyncPoster(EventBus eventBus) {
+        this.eventBus = eventBus;
+        queue = new PendingPostQueue();
+    }
+
+    /**
+     * 入队
+     * @param subscription Subscription 接收事件的订阅者方法包装类
+     * @param event        Object 将发布给订阅者的事件
+     */
+    public void enqueue(Subscription subscription, Object event) {
+        // 获取一个 PendingPost
+        PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
+        // 入队
+        queue.enqueue(pendingPost);
+        // 将任务提交到线程池处理，每个事件都会单独提交，不同于 BackgroundPoster
+        eventBus.getExecutorService().execute(this);
+    }
+
+    @Override
+    public void run() {
+        // 获取队头的元素 一一对应，一次任务执行消费一个事件元素
+        PendingPost pendingPost = queue.poll();
+        if(pendingPost == null) {
+            throw new IllegalStateException("No pending post available");
+        }
+        // 调用订阅者方法发布事件
+        eventBus.invokeSubscriber(pendingPost);
+    }
+}
+```
+
+**enqueue**
+
+该方法只有三行代码，分别是通过 `PendingPost.obtainPendingPost(Subscription subscription, Object event)` 获取待发布元素、事件入队、将任务提交到线程池执行。
+
+**run**
+
+由于该发布器是处理 `ASYNC` 线程模式的，`ASYNC` 的事件总是与发布线程不是同一个，所以事件就是发布一个执行一个，没有等待发布的多个元素，方法体内逻辑也很简单，从队列中取出待发布的事件、判空、调用订阅者方法。这里就不再详细的解析，逻辑比较简单。
+
+## 7 取消注册订阅（unregister）
+
+取消注册使用的是 `unregister(Object subscriber)` 方法，该方法的源码如下：
+
+```java
+public synchronized void unregister(Object subscriber) {
+    // 获取订阅者接收的事件类型
+    List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
+    if (subscribedTypes != null) {
+        // 按事件类型遍历退订相关订阅方法
+        for (Class<?> eventType : subscribedTypes) {
+            unsubscribeByEventType(subscriber, eventType);
+        }
+        // 从订阅者所接收的事件类型Map中移除该订阅者
+        typesBySubscriber.remove(subscriber);
+    } else {
+        logger.log(Level.WARNING, "Subscriber to unregister was not registered before: " + subscriber.getClass());
+    }
+}
+```
+该方法首先从 `typesBySubscriber` 中获取当前取消注册的订阅者接收的事件类型，如果为空就结束，不为空的情况下进行对所有的事件类型遍历调用 `unsubscribeByEventType(Object subscriber, Class<?> eventType)` 方法退订，这个方法在下面解析，遍历结束后在从 `typesBySubscriber` 中移除该订阅者，到此整个取消注册结束，下面来详细解析下 `unsubscribeByEventType(Object subscriber, Class<?> eventType)` 方法。
+
+**unsubscribeByEventType**
+
+该方法主要是按照事件类型进行退订，方法源码如下：
+
+```java
+private void unsubscribeByEventType(Object subscriber, Class<?> eventType) {
+    // 获取需要退订的事件类型的订阅者方法
+    List<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
+    if (subscriptions != null) {
+        // 循环遍历移除当前订阅者的订阅者方法
+        int size = subscriptions.size();
+        for (int i = 0; i < size; i++) {
+            Subscription subscription = subscriptions.get(i);
+            if (subscription.subscriber == subscriber) {
+                subscription.active = false;
+                subscriptions.remove(i);
+                i--;
+                size--;
+            }
+        }
+    }
+}
+```
+
+方法第一行通过 `subscriptionsByEventType` 获取当前事件类型的所有订阅者方法，进行判空后进入到 `if` 中，对所有的订阅者方法进行遍历操作，在 `for` 循环中，对当前订阅者方法比对订阅者是否相同，如果相同就表示是取消注册订阅者的订阅方法，将其活跃状态设置为非活跃，并且从订阅方法集合中移除该订阅方法。
+
+至此整个退订环节结束，也代表着整个源码解析结束。写到此处已经超出掘金编辑器的最大字符数上限了...在删了一些注释后才能继续写。
 
 # 四、结尾
 
+&emsp;&emsp;本次源码解析前前后后断断续续的持续了一个月的时间，文章内容比较多、比较细，还有一些源码没有在文章中提到，因为字数有限制，篇幅已经够大了，在后面会放上所有源码+注释的GitHub地址，有兴趣的小伙伴可以去看更详细的代码。
+
+GitHub:[Quyunshuo/EventBusCodeParsing](https://github.com/Quyunshuo/EventBusCodeParsing)
